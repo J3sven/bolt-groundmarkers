@@ -24,6 +24,18 @@ function M.toggleTileMarker(state, bolt)
       existing.tileX, existing.tileZ, tile2D.x, tile2D.z, count(marked)))
   else
     local tileX, tileZ = coords.worldToTileCoords(px, pz)
+
+    local floor, chunkX, chunkZ, localX, localZ = coords.tileToRS(tileX, tileZ, py)
+
+    -- derive absolute RS X and guard against > 6400
+    local rsX = chunkX * 64 + localX
+    if rsX > 6400 then
+      bolt.saveconfig("marker_debug.txt", string.format(
+        "Skipped marker at tile (%d, %d) [world: %.0f, %.0f]: rsX=%d > 6400",
+        tileX, tileZ, tile2D.x, tile2D.z, rsX))
+      return
+    end
+
     marked[key] = {
       x = tile2D.x, z = tile2D.z, y = py,
       colorIndex = state.getCurrentColorIndex(),
@@ -31,13 +43,13 @@ function M.toggleTileMarker(state, bolt)
     }
     persistence.saveMarkers(state, bolt)
 
-    local floor, chunkX, chunkZ, localX, localZ = coords.tileToRS(tileX, tileZ, py)
     bolt.saveconfig("marker_debug.txt", string.format(
-      "Added %s marker at tile (%d, %d) [world: %.0f, %.0f] [OSRS: %d,%d,%d,%d,%d] at Y=%.0f (total: %d)",
+      "Added %s marker at tile (%d, %d) [world: %.0f, %.0f] [RS: %d,%d,%d,%d,%d] at Y=%.0f (total: %d)",
       colors.getColorName(state.getCurrentColorIndex()), tileX, tileZ, tile2D.x, tile2D.z,
       floor, chunkX, chunkZ, localX, localZ, py, count(marked)))
   end
 end
+
 
 function M.recolorCurrentTile(state, bolt)
   local coords = state.getCoords()
