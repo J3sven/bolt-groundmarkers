@@ -6,7 +6,7 @@ local colors   = require("core.colors")
 local coords   = require("core.coords")
 local persist  = require("data.persistence")
 local surfaces = require("gfx.surfaces")
-local tiles    = require("logic.tiles")
+local tiles    = require("core.tiles")
 local input    = require("input.input")
 local render   = require("gfx.render")
 
