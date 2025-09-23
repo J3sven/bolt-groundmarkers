@@ -7,4 +7,7 @@ A simple [Bolt launcher](https://github.com/adamcake/Bolt) plugin to draw colore
 3. Mark or unmark the tile the player is standing on by pressing `alt+MiddleClick`.
 4. Change the color of the tile you are standing on by pressing `ctrl+MiddleClick` or cycle through colors using `ctrl+Scroll`. Your selected color will be used for future markings.
 
+#TODO
+Currently the plugin does not support marking tiles in instances. There is as of right now no clear cut way to identify the source map region for instances like we have on OSRS clients so it is unclear when this will be supported.
+
 <img width="955" height="608" alt="image" src="https://github.com/user-attachments/assets/ea406ae2-88de-4528-b5d9-c7aec7eb5d2b" />
