@@ -17,6 +17,12 @@ function M.worldToTile2D(worldX, worldZ)
   }
 end
 
+function M.rsToTileCoords(floor, chunkX, chunkZ, localX, localZ)
+    local tileX = chunkX * 64 + localX - 1
+    local tileZ = chunkZ * 64 + localZ - 128
+    return tileX, tileZ
+end
+
 function M.tileKey(tileX, tileZ)
   return tileX .. "," .. tileZ
 end

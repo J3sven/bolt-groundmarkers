@@ -25,15 +25,21 @@ function M.loadMarkers(state, bolt)
                 local tilesMatch = saved:match('"tiles":%s*%[(.-)%]')
                 if tilesMatch then
                     for tileStr in tilesMatch:gmatch('{.-}') do
-                        local tileX = tonumber(tileStr:match('"tileX":%s*(%d+)'))
-                        local tileZ = tonumber(tileStr:match('"tileZ":%s*(%d+)'))
+                        local chunkX = tonumber(tileStr:match('"chunkX":%s*(%d+)'))
+                        local chunkZ = tonumber(tileStr:match('"chunkZ":%s*(%d+)'))
+                        local localX = tonumber(tileStr:match('"localX":%s*(%d+)'))
+                        local localZ = tonumber(tileStr:match('"localZ":%s*(%d+)'))
+                        local floor = tonumber(tileStr:match('"floor":%s*(%d+)'))
                         local worldY = tonumber(tileStr:match('"worldY":%s*([%d%.]+)'))
                         local colorIndex = tonumber(tileStr:match('"colorIndex":%s*(%d+)')) or 1
                         
-                        if tileX and tileZ and worldY then
+                        if chunkX and chunkZ and localX and localZ and worldY then
                             table.insert(jsonData.tiles, {
-                                tileX = tileX,
-                                tileZ = tileZ,
+                                chunkX = chunkX,
+                                chunkZ = chunkZ,
+                                localX = localX,
+                                localZ = localZ,
+                                floor = floor or 0,
                                 worldY = worldY,
                                 colorIndex = colorIndex
                             })
@@ -46,17 +52,26 @@ function M.loadMarkers(state, bolt)
         
         if success and data and type(data) == "table" and data.tiles then
             for _, tileData in ipairs(data.tiles) do
-                local tileX = tonumber(tileData.tileX)
-                local tileZ = tonumber(tileData.tileZ)  
+                local chunkX = tonumber(tileData.chunkX)
+                local chunkZ = tonumber(tileData.chunkZ)
+                local localX = tonumber(tileData.localX)
+                local localZ = tonumber(tileData.localZ)
+                local floor = tonumber(tileData.floor) or 0
                 local worldY = tonumber(tileData.worldY)
                 local colorIndex = tonumber(tileData.colorIndex) or 1
                 
-                if tileX and tileZ and worldY then
+                if chunkX and chunkZ and localX and localZ and worldY then
+                    -- Convert RS coordinates to world coordinates for the key
+                    local tileX, tileZ = coords.rsToTileCoords(floor, chunkX, chunkZ, localX, localZ)
                     local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
                     local key = coords.tileKey(worldX, worldZ)
+                    
                     markedTiles[key] = {
                         x = worldX, z = worldZ, y = worldY,
-                        colorIndex = colorIndex, tileX = tileX, tileZ = tileZ
+                        colorIndex = colorIndex,
+                        chunkX = chunkX, chunkZ = chunkZ,
+                        localX = localX, localZ = localZ,
+                        floor = floor
                     }
                 end
             end
@@ -77,8 +92,11 @@ function M.saveMarkers(state, bolt)
     
     for _, tile in pairs(markedTiles or {}) do
         table.insert(tiles, {
-            tileX = tile.tileX,
-            tileZ = tile.tileZ,
+            chunkX = tile.chunkX,
+            chunkZ = tile.chunkZ,
+            localX = tile.localX,
+            localZ = tile.localZ,
+            floor = tile.floor,
             worldY = tile.y,
             colorIndex = tile.colorIndex or 1
         })
@@ -106,8 +124,8 @@ function M.saveMarkers(state, bolt)
         
         for i, tile in ipairs(tiles) do
             local comma = i < #tiles and ',' or ''
-            table.insert(jsonLines, string.format('    {"tileX": %d, "tileZ": %d, "worldY": %.0f, "colorIndex": %d}%s',
-                tile.tileX, tile.tileZ, tile.worldY, tile.colorIndex, comma))
+            table.insert(jsonLines, string.format('    {"chunkX": %d, "chunkZ": %d, "localX": %d, "localZ": %d, "floor": %d, "worldY": %.0f, "colorIndex": %d}%s',
+                tile.chunkX, tile.chunkZ, tile.localX, tile.localZ, tile.floor, tile.worldY, tile.colorIndex, comma))
         end
         
         table.insert(jsonLines, '  ]')

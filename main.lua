@@ -18,6 +18,6 @@ render.hookSwapBuffers(state, bolt, surfaces, colors)
 input.bind(state, bolt, tiles, colors)
 
 bolt.saveconfig("marker_debug.txt", string.format(
-  "Refined Tile Coordinate Marker Plugin loaded!\nCurrent color: %s\nControls:\n- Alt+Middle: toggle marker\n- Ctrl+Scroll: step color\n- Shift+Middle: cycle color",
+  "Current color: %s\n",
   colors.getColorName(state.getCurrentColorIndex())
 ))
