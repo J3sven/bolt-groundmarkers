@@ -1,6 +1,5 @@
 local M = {}
 
--- Small, smooth line via repeated blits
 function M.drawLine(surface, x1, y1, x2, y2, thickness)
   local dx, dy = x2 - x1, y2 - y1
   local dist = math.sqrt(dx * dx + dy * dy)
@@ -23,39 +22,24 @@ function M.drawPolygonOutline(surface, corners, thickness)
   end
 end
 
--- Build 3D corners, nudging shared edges toward neighbor heights
-function M.getProperTileCorners(bolt, coords, markedTiles, markedTile)
-  local S = coords.TILE_SIZE
-  local tx, ty, tz = markedTile.x, markedTile.y, markedTile.z
-
-  local corners = {
-    bolt.point(tx,       ty, tz),        -- BL
-    bolt.point(tx + S,   ty, tz),        -- BR
-    bolt.point(tx + S,   ty, tz + S),    -- TR
-    bolt.point(tx,       ty, tz + S),    -- TL
-  }
-
-  local key = coords.tileKey
-  local north = markedTiles[key(tx, tz + S)]
-  local east  = markedTiles[key(tx + S, tz)]
-  local south = markedTiles[key(tx, tz - S)]
-  local west  = markedTiles[key(tx - S, tz)]
-
-  local function adjustEdge(i1, i2, neighbor)
-    if neighbor and math.abs(neighbor.y - ty) > 10 then
-      local edgeY = (ty + neighbor.y) / 2
-      corners[i1] = bolt.point(corners[i1]:x(), edgeY, corners[i1]:z())
-      corners[i2] = bolt.point(corners[i2]:x(), edgeY, corners[i2]:z())
-    end
+local function sampleHeight(bolt, state, x, z, fallbackY)
+  if state and state.getHeightAt then
+    local ok, y = pcall(state.getHeightAt, x, z)
+    if ok and type(y) == "number" then return y end
   end
+  if bolt and bolt.groundheight then
+    local ok, y = pcall(bolt.groundheight, x, z)
+    if ok and type(y) == "number" then return y end
+  end
+  return fallbackY or 0
+end
 
-  -- edges: south(BL,BR), north(TR,TL), east(BR,TR), west(BL,TL)
-  adjustEdge(1, 2, south)
-  adjustEdge(3, 4, north)
-  adjustEdge(2, 3, east)
-  adjustEdge(1, 4, west)
-
-  return corners
+function M.gridVertexToWorldPoint(bolt, state, coords, gx, gz, fallbackY)
+  local S = coords.TILE_SIZE
+  local wx = gx * S
+  local wz = gz * S
+  local wy = sampleHeight(bolt, state, wx, wz, fallbackY)
+  return bolt.point(wx, wy, wz)
 end
 
 return M
