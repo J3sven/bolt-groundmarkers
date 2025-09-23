@@ -13,11 +13,31 @@ function M.hookRender3D(state, bolt)
   end)
 end
 
+local EDGE_SUBDIVS = 2
+
 local function normEdgeKey(ax, az, bx, bz)
   if (bx < ax) or (bx == ax and bz < az) then
     ax, az, bx, bz = bx, bz, ax, az
   end
   return ax .. "," .. az .. ">" .. bx .. "," .. bz
+end
+
+local function vkey(x, z) return x .. "," .. z end
+local function parseVKey(k)
+  local x, z = k:match("([^,]+),([^,]+)")
+  return tonumber(x), tonumber(z)
+end
+
+local function terrainHeightOrNil(bolt, state, wx, wz)
+  if state and state.getHeightAt then
+    local ok, y = pcall(state.getHeightAt, wx, wz)
+    if ok and type(y) == "number" then return y end
+  end
+  if bolt and bolt.groundheight then
+    local ok, y = pcall(bolt.groundheight, wx, wz)
+    if ok and type(y) == "number" then return y end
+  end
+  return nil
 end
 
 local function computeUniqueEdges(tiles, coords)
@@ -39,13 +59,62 @@ local function computeUniqueEdges(tiles, coords)
 
     for _, e in ipairs(tileEdges) do
       local k = normEdgeKey(e[1],e[2],e[3],e[4])
-      edges[k] = edges[k] or { ax=e[1], az=e[2], bx=e[3], bz=e[4] }
+      if not edges[k] then
+        edges[k] = { ax=e[1], az=e[2], bx=e[3], bz=e[4] }
+      end
     end
   end
   return edges
 end
 
--- Simple rectangle check in screen space
+local function buildVertexHeights(bolt, state, tiles, coords)
+  local S = coords.TILE_SIZE
+  local useTerrain = (state and state.getHeightAt) or (bolt and bolt.groundheight)
+
+  local acc, cnt = {}, {}
+  if not useTerrain then
+    for _, t in ipairs(tiles) do
+      local tx, tz = coords.worldToTileCoords(t.x, t.z)
+      local y = t.y or 0
+      local verts = {
+        vkey(tx,     tz),
+        vkey(tx + 1, tz),
+        vkey(tx + 1, tz + 1),
+        vkey(tx,     tz + 1),
+      }
+      for _, k in ipairs(verts) do
+        acc[k] = (acc[k] or 0) + y
+        cnt[k] = (cnt[k] or 0) + 1
+      end
+    end
+  end
+
+  local vh = {}
+  local seen = {}
+  for _, t in ipairs(tiles) do
+    local tx, tz = coords.worldToTileCoords(t.x, t.z)
+    local verts = {
+      {tx,     tz},
+      {tx + 1, tz},
+      {tx + 1, tz + 1},
+      {tx,     tz + 1},
+    }
+    for _, v in ipairs(verts) do
+      local k = vkey(v[1], v[2])
+      if not seen[k] then
+        seen[k] = true
+        local wx, wz = v[1] * S, v[2] * S
+        local y = useTerrain and terrainHeightOrNil(bolt, state, wx, wz)
+        if y == nil then
+          y = (acc[k] and acc[k] / cnt[k]) or 0
+        end
+        vh[k] = y
+      end
+    end
+  end
+  return vh
+end
+
 local function anyEndpointInView(ax, ay, bx, by, vx, vy, vw, vh)
   if (ax >= vx and ay >= vy and ax <= vx+vw and ay <= vy+vh) then return true end
   if (bx >= vx and by >= vy and bx <= vx+vw and by <= vy+vh) then return true end
@@ -99,18 +168,49 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors)
 
         local uniqueEdges = computeUniqueEdges(list, coords)
 
-        local fallbackY = list[1] and list[1].y or 0
+        local vHeights = buildVertexHeights(bolt, state, list, coords)
+        local S = coords.TILE_SIZE
 
         for _, e in pairs(uniqueEdges) do
-          local pA = draw.gridVertexToWorldPoint(bolt, state, coords, e.ax, e.az, fallbackY)
-          local pB = draw.gridVertexToWorldPoint(bolt, state, coords, e.bx, e.bz, fallbackY)
+          local samples = {}
+          local function pushSample(gx, gz)
+            local k = vkey(gx, gz)
+            local wy = vHeights[k] or 0
+            local wx, wz = gx * S, gz * S
+            local p3 = bolt.point(wx, wy, wz)
+            local sx, sy, sd = p3:transform(viewProj):aspixels()
+            table.insert(samples, {sx=sx, sy=sy, sd=sd})
+          end
 
-          local ax, ay, ad = pA:transform(viewProj):aspixels()
-          local bx, by, bd = pB:transform(viewProj):aspixels()
+          pushSample(e.ax, e.az)
 
-          if not (ad <= 0.0 or ad > 1.0 or bd <= 0.0 or bd > 1.0) then
-            if anyEndpointInView(ax, ay, bx, by, vx, vy, vw, vh) then
-              draw.drawLine(coloredSurface, ax, ay, bx, by, 3)
+          if EDGE_SUBDIVS and EDGE_SUBDIVS > 0 then
+            for s = 1, EDGE_SUBDIVS do
+              local t = s / (EDGE_SUBDIVS + 1)
+              local gx = e.ax + (e.bx - e.ax) * t
+              local gz = e.az + (e.bz - e.az) * t
+
+              local wx, wz = gx * S, gz * S
+              local midY = terrainHeightOrNil(bolt, state, wx, wz)
+              if midY == nil then
+                local ya = vHeights[vkey(e.ax, e.az)] or 0
+                local yb = vHeights[vkey(e.bx, e.bz)] or 0
+                midY = ya + (yb - ya) * t
+              end
+              local p3 = bolt.point(wx, midY, wz)
+              local sx, sy, sd = p3:transform(viewProj):aspixels()
+              table.insert(samples, {sx=sx, sy=sy, sd=sd})
+            end
+          end
+
+          pushSample(e.bx, e.bz)
+
+          for i = 1, #samples - 1 do
+            local a, b = samples[i], samples[i+1]
+            if not (a.sd <= 0.0 or a.sd > 1.0 or b.sd <= 0.0 or b.sd > 1.0) then
+              if anyEndpointInView(a.sx, a.sy, b.sx, b.sy, vx, vy, vw, vh) then
+                draw.drawLine(coloredSurface, a.sx, a.sy, b.sx, b.sy, 3)
+              end
             end
           end
         end
