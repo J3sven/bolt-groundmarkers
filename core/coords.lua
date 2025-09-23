@@ -18,8 +18,8 @@ function M.worldToTile2D(worldX, worldZ)
 end
 
 function M.rsToTileCoords(floor, chunkX, chunkZ, localX, localZ)
-    local tileX = chunkX * 64 + localX - 1
-    local tileZ = chunkZ * 64 + localZ - 128
+    local tileX = chunkX * 64 + localX
+    local tileZ = chunkZ * 64 + localZ
     return tileX, tileZ
 end
 
@@ -28,12 +28,12 @@ function M.tileKey(tileX, tileZ)
 end
 
 function M.tileToRS(tileX, tileZ, worldY)
-  local floor = math.floor((worldY - 965) / 960)
-  local chunkX = math.floor((tileX + 1) / 64)
-  local chunkZ = math.floor((tileZ + 128) / 64)
-  local localX = (tileX + 1) % 64
-  local localZ = (tileZ + 128) % 64
-  return floor, chunkX, chunkZ, localX, localZ
+    local floor = math.floor((worldY - 965) / 960)
+    local chunkX = math.floor(tileX / 64)
+    local chunkZ = math.floor(tileZ / 64)
+    local localX = tileX % 64
+    local localZ = tileZ % 64
+    return floor, chunkX, chunkZ, localX, localZ
 end
 
 M.TILE_SIZE = TILE_SIZE
