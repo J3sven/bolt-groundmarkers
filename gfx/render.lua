@@ -7,8 +7,8 @@ local function tileCount(marked)
   return n
 end
 
-function M.hookRender3D(state, bolt)
-  bolt.onrender3d(function(event)
+function M.hookRender3D(state, bolt, hooks)
+  hooks.addRender3DHandler("viewproj", function(event)
     state.setViewProj(event:viewprojmatrix())
   end)
 end
@@ -121,8 +121,8 @@ local function anyEndpointInView(ax, ay, bx, by, vx, vy, vw, vh)
   return false
 end
 
-function M.hookSwapBuffers(state, bolt, surfaces, colors)
-  bolt.onswapbuffers(function(event)
+function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
+  hooks.addSwapBufferHandler("rendering", function(event)
     state.incFrame()
 
     local markerSurface = state.getMarkerSurface()
@@ -142,15 +142,57 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors)
 
     local vx, vy, vw, vh = bolt.gameviewxywh()
 
-    -- Filter tiles to those within 1 chunk of the player (3x3 area)
+    -- NEW: Transform instance markers to current player position
     local chunkTiles = {}
+    local instanceRecognition = require("core.instances")
+    local currentInstanceId = instanceRecognition.getCurrentInstanceId()
+    local inInstance = instanceRecognition.isInInstance()
+
     for _, t in pairs(marked) do
-      local dx = math.abs(t.chunkX - playerChunkX)
-      local dz = math.abs(t.chunkZ - playerChunkZ)
-      if dx <= 1 and dz <= 1 then
-        chunkTiles[#chunkTiles + 1] = t
+      local shouldRender = false
+      local transformedTile = t  -- Default to original tile
+      
+      if t.instanceId then
+        -- Instance marker: render if we're in the same instance
+        if inInstance and currentInstanceId == t.instanceId then
+          shouldRender = true
+          
+          -- Transform coordinates: use stored local coords + current player chunk
+          local newChunkX = playerChunkX
+          local newChunkZ = playerChunkZ
+          local localX = t.localX
+          local localZ = t.localZ
+          
+          -- Convert new chunk + local to world coordinates
+          local newTileX = newChunkX * 64 + localX
+          local newTileZ = newChunkZ * 64 + localZ
+          local newWorldX, newWorldZ = coords.tileToWorldCoords(newTileX, newTileZ)
+          
+          -- Create transformed tile with new coordinates
+          transformedTile = {
+            x = newWorldX, z = newWorldZ, y = t.y,
+            colorIndex = t.colorIndex,
+            chunkX = newChunkX, chunkZ = newChunkZ,
+            localX = localX, localZ = localZ,
+            floor = t.floor,
+            instanceId = t.instanceId,
+            isRecognized = t.isRecognized
+          }
+        end
+      else
+        -- Regular marker: use chunk proximity as before
+        local dx = math.abs(t.chunkX - playerChunkX)
+        local dz = math.abs(t.chunkZ - playerChunkZ)
+        if dx <= 1 and dz <= 1 then
+          shouldRender = true
+        end
+      end
+      
+      if shouldRender then
+        chunkTiles[#chunkTiles + 1] = transformedTile
       end
     end
+    
     if #chunkTiles == 0 then return end
 
     local byColor = {}

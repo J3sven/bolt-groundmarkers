@@ -91,7 +91,7 @@ function M.saveMarkers(state, bolt)
     local count = 0
     
     for _, tile in pairs(markedTiles or {}) do
-        table.insert(tiles, {
+        local tileData = {
             chunkX = tile.chunkX,
             chunkZ = tile.chunkZ,
             localX = tile.localX,
@@ -99,7 +99,14 @@ function M.saveMarkers(state, bolt)
             floor = tile.floor,
             worldY = tile.y,
             colorIndex = tile.colorIndex or 1
-        })
+        }
+        
+        if tile.instanceId then
+            tileData.instanceId = tile.instanceId
+            tileData.isRecognized = tile.isRecognized or false
+        end
+        
+        table.insert(tiles, tileData)
         count = count + 1
     end
     
@@ -124,8 +131,14 @@ function M.saveMarkers(state, bolt)
         
         for i, tile in ipairs(tiles) do
             local comma = i < #tiles and ',' or ''
-            table.insert(jsonLines, string.format('    {"chunkX": %d, "chunkZ": %d, "localX": %d, "localZ": %d, "floor": %d, "worldY": %.0f, "colorIndex": %d}%s',
-                tile.chunkX, tile.chunkZ, tile.localX, tile.localZ, tile.floor, tile.worldY, tile.colorIndex, comma))
+            local instanceFields = ""
+            if tile.instanceId then
+                instanceFields = string.format(', "instanceId": "%s", "isRecognized": %s', 
+                    tile.instanceId, tostring(tile.isRecognized or false))
+            end
+
+            table.insert(jsonLines, string.format('    {"chunkX": %d, "chunkZ": %d, "localX": %d, "localZ": %d, "floor": %d, "worldY": %.0f, "colorIndex": %d%s}%s',
+                tile.chunkX, tile.chunkZ, tile.localX, tile.localZ, tile.floor, tile.worldY, tile.colorIndex, instanceFields, comma))
         end
         
         table.insert(jsonLines, '  ]')
