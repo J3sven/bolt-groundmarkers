@@ -10,8 +10,10 @@ local tiles = require("core.tiles")
 local input = require("input.input")
 local render = require("gfx.render")
 local hooks = require("core.hooks")
-local instanceRecognition = require("core.instances")
+local instanceManager = require("core.instance_manager")
+local guiBridge = require("core.gui_bridge")
 
+-- Initialize core modules
 state.init({ bolt = bolt, colors = colors, coords = coords })
 state.setMarkerSurface(surfaces.createMarkerSurface(bolt))
 persist.loadMarkers(state, bolt)
@@ -19,11 +21,29 @@ persist.loadMarkers(state, bolt)
 -- Initialize hooks FIRST
 hooks.init(bolt)
 
--- Pass hooks to render functions
-render.hookRender3D(state, bolt, hooks)  -- ADD hooks parameter
-render.hookSwapBuffers(state, bolt, surfaces, colors, hooks)  -- ADD hooks parameter
+-- Initialize instance manager
+instanceManager.init()
 
+-- Initialize GUI bridge
+guiBridge.init()
+
+-- Set up rendering hooks
+render.hookRender3D(state, bolt, hooks)
+render.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
+
+-- Add instance manager update and GUI update to swap buffer handler
+hooks.addSwapBufferHandler("instance_manager", function(event)
+    instanceManager.update(bolt)
+    -- Also periodically update GUI
+    local currentFrame = state.getFrame and state.getFrame() or 0
+    guiBridge.periodicUpdate(bolt, state, currentFrame)
+end)
+
+-- Set up input bindings
 input.bind(state, bolt, tiles, colors)
-instanceRecognition.init(bolt, hooks)  -- ADD hooks parameter
 
-bolt.saveconfig("marker_debug.txt", "Plugin initialized with hooks")
+-- Open the GUI on startup
+guiBridge.open(bolt, state)
+guiBridge.sendFullUpdate(bolt, state)
+
+bolt.saveconfig("marker_debug.txt", "Plugin initialized with simplified instance system - GUI opened")

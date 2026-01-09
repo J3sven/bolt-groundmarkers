@@ -129,9 +129,6 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
     local viewProj = state.getViewProj()
     if not markerSurface or not viewProj then return end
 
-    local marked = state.getMarkedTiles()
-    if tileCount(marked) == 0 then return end
-
     local playerPos = bolt.playerposition()
     if not playerPos then return end
 
@@ -142,61 +139,72 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     local vx, vy, vw, vh = bolt.gameviewxywh()
 
-    -- NEW: Transform instance markers to current player position
-    local chunkTiles = {}
-    local instanceRecognition = require("core.instances")
-    local currentInstanceId = instanceRecognition.getCurrentInstanceId()
-    local inInstance = instanceRecognition.isInInstance()
+    local instanceManager = require("core.instance_manager")
+    local inInstance = instanceManager.isInInstance()
 
-    for _, t in pairs(marked) do
-      local shouldRender = false
-      local transformedTile = t  -- Default to original tile
-      
-      if t.instanceId then
-        -- Instance marker: render if we're in the same instance
-        if inInstance and currentInstanceId == t.instanceId then
-          shouldRender = true
-          
-          -- Transform coordinates: use stored local coords + current player chunk
-          local newChunkX = playerChunkX
-          local newChunkZ = playerChunkZ
-          local localX = t.localX
-          local localZ = t.localZ
-          
-          -- Convert new chunk + local to world coordinates
-          local newTileX = newChunkX * 64 + localX
-          local newTileZ = newChunkZ * 64 + localZ
-          local newWorldX, newWorldZ = coords.tileToWorldCoords(newTileX, newTileZ)
-          
-          -- Create transformed tile with new coordinates
-          transformedTile = {
-            x = newWorldX, z = newWorldZ, y = t.y,
-            colorIndex = t.colorIndex,
-            chunkX = newChunkX, chunkZ = newChunkZ,
-            localX = localX, localZ = localZ,
-            floor = t.floor,
-            instanceId = t.instanceId,
-            isRecognized = t.isRecognized
-          }
-        end
-      else
-        -- Regular marker: use chunk proximity as before
+    -- Collect all tiles to render
+    local tilesToRender = {}
+
+    -- 1. Add regular (non-instance) markers if not in instance
+    if not inInstance then
+      local marked = state.getMarkedTiles()
+      for _, t in pairs(marked) do
         local dx = math.abs(t.chunkX - playerChunkX)
         local dz = math.abs(t.chunkZ - playerChunkZ)
         if dx <= 1 and dz <= 1 then
-          shouldRender = true
+          table.insert(tilesToRender, t)
         end
       end
-      
-      if shouldRender then
-        chunkTiles[#chunkTiles + 1] = transformedTile
+    end
+
+    -- 2. Add active layout tiles if in instance
+    if inInstance then
+      local activeLayoutId = instanceManager.getActiveLayoutId()
+
+      if activeLayoutId then
+        local layoutPersist = require("data.layout_persistence")
+        local layout = layoutPersist.getLayout(bolt, activeLayoutId)
+
+        if layout and layout.tiles then
+          -- Transform layout tiles to current chunk position
+          for _, layoutTile in ipairs(layout.tiles) do
+            local localX = layoutTile.localX
+            local localZ = layoutTile.localZ
+
+            -- Convert to world coordinates using current player chunk
+            local newTileX = playerChunkX * 64 + localX
+            local newTileZ = playerChunkZ * 64 + localZ
+            local newWorldX, newWorldZ = coords.tileToWorldCoords(newTileX, newTileZ)
+
+            local transformedTile = {
+              x = newWorldX,
+              z = newWorldZ,
+              y = layoutTile.worldY,
+              colorIndex = layoutTile.colorIndex,
+              chunkX = playerChunkX,
+              chunkZ = playerChunkZ,
+              localX = localX,
+              localZ = localZ,
+              floor = 0
+            }
+
+            table.insert(tilesToRender, transformedTile)
+          end
+        end
+      end
+
+      -- 3. Add temporary instance tiles (overlaid on layout)
+      local tempTiles = instanceManager.getInstanceTiles()
+      for _, t in pairs(tempTiles) do
+        table.insert(tilesToRender, t)
       end
     end
-    
-    if #chunkTiles == 0 then return end
 
+    if #tilesToRender == 0 then return end
+
+    -- Group by color and render
     local byColor = {}
-    for _, t in ipairs(chunkTiles) do
+    for _, t in ipairs(tilesToRender) do
       local idx = t.colorIndex or 1
       byColor[idx] = byColor[idx] or {}
       table.insert(byColor[idx], t)

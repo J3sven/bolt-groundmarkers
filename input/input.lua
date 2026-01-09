@@ -18,7 +18,7 @@ function M.bind(state, bolt, tiles, colors)
       -- Alt + Middle: toggle marker at player
       tiles.toggleTileMarker(state, bolt)
     elseif event:ctrl() then
-      -- Shift + Middle: cycle color, recolor tile if on one
+      -- Ctrl + Middle: cycle color, recolor tile if on one
       colors.cycleColor(state, bolt)
       tiles.recolorCurrentTile(state, bolt)
     end
