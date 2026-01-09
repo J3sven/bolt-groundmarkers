@@ -25,7 +25,7 @@ persist.loadMarkers(state, bolt)
 hooks.init(bolt)
 
 -- Initialize instance manager
-instanceManager.init()
+instanceManager.init(bolt)
 
 -- Initialize GUI bridge
 guiBridge.init()

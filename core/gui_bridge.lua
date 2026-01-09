@@ -294,18 +294,26 @@ function M.handleBrowserMessage(bolt, state, data)
         ))
 
     elseif data.action == "activate_layout" then
-        -- Activate a saved layout
-        if not instanceManager.isInInstance() then
-            bolt.saveconfig("instance_debug.txt", "Cannot activate layout: not in instance")
+        local layoutId = data.layoutId
+        if not layoutId or layoutId == "" then
             return
         end
 
-        instanceManager.setActiveLayout(data.layoutId)
-        M.sendStateUpdate(state, bolt)
+        local layout = layoutPersist.getLayout(bolt, layoutId)
+        if not layout then
+            bolt.saveconfig("instance_debug.txt", string.format(
+                "Cannot activate layout %s: missing definition", layoutId
+            ))
+            return
+        end
 
-        bolt.saveconfig("instance_debug.txt", string.format(
-            "Activated layout %s", data.layoutId
-        ))
+        if instanceManager.setActiveLayout(layoutId) then
+            M.sendStateUpdate(state, bolt)
+
+            bolt.saveconfig("instance_debug.txt", string.format(
+                "Activated layout %s (auto-apply ready)", layoutId
+            ))
+        end
 
     elseif data.action == "deactivate_layout" then
         -- Deactivate current layout
@@ -388,9 +396,28 @@ function M.handleBrowserMessage(bolt, state, data)
     elseif data.action == "adjust_chunk_tile_height" then
         local localX = tonumber(data.localX)
         local localZ = tonumber(data.localZ)
+
         local direction = tonumber(data.direction)
+        if not direction or direction == 0 then
+            local dirLabel = data.directionLabel
+            if type(dirLabel) == "string" then
+                dirLabel = string.lower(dirLabel)
+                if dirLabel == "down" then
+                    direction = -1
+                elseif dirLabel == "up" then
+                    direction = 1
+                end
+            end
+        end
+
         if not (localX and localZ and direction and direction ~= 0) then
             return
+        end
+
+        if direction > 0 then
+            direction = 1
+        elseif direction < 0 then
+            direction = -1
         end
 
         local scope = data.scope or (instanceManager.isInInstance() and "instance" or "world")

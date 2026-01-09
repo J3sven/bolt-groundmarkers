@@ -2,6 +2,8 @@
 local M = {}
 local colors = require("core.colors")
 local HEIGHT_STEP = 25
+local ACTIVE_LAYOUT_FILE = "active_layout.txt"
+local boltRef = nil
 
 -- Internal state
 local state = {
@@ -23,9 +25,37 @@ local function isInInstanceChunk(chunkX, chunkZ)
 end
 
 -- Initialize the instance manager
-function M.init()
+local function trimString(value)
+    if type(value) ~= "string" then
+        return nil
+    end
+    local trimmed = value:match("^%s*(.-)%s*$") or ""
+    if trimmed == "" then
+        return nil
+    end
+    return trimmed
+end
+
+local function persistActiveLayout()
+    if not boltRef then
+        return
+    end
+    local payload = state.currentLayoutId or ""
+    boltRef.saveconfig(ACTIVE_LAYOUT_FILE, payload)
+end
+
+local function loadActiveLayout()
+    if not boltRef then
+        return nil
+    end
+    local saved = boltRef.loadconfig(ACTIVE_LAYOUT_FILE)
+    return trimString(saved)
+end
+
+function M.init(bolt)
+    boltRef = bolt
     state.inInstance = false
-    state.currentLayoutId = nil
+    state.currentLayoutId = loadActiveLayout()
     state.instanceTiles = {}
     return true
 end
@@ -93,12 +123,19 @@ end
 
 -- Set the active layout (called from GUI)
 function M.setActiveLayout(layoutId)
+    if type(layoutId) ~= "string" or layoutId == "" then
+        return false
+    end
+
     state.currentLayoutId = layoutId
+    persistActiveLayout()
+    return true
 end
 
 -- Clear the active layout
 function M.clearActiveLayout()
     state.currentLayoutId = nil
+    persistActiveLayout()
 end
 
 -- Add a tile to the temporary instance buffer
