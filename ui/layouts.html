@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <button class="close-button" onclick="closeWindow()">×</button>
+    <button class="close-button">×</button>
 
     <div class="container">
         <h1>Instance Tile Layouts</h1>
@@ -42,14 +42,14 @@
                 </p>
                 <div class="save-layout">
                     <input type="text" id="layout-name" placeholder="Enter layout name (e.g., 'Croesus', 'ED3 Boss 1')">
-                    <button onclick="saveLayout()" id="save-button" disabled>Save Layout</button>
+                    <button id="save-button" disabled>Save Layout</button>
                 </div>
             </div>
 
             <div class="section">
                 <div class="section-header">
                     <div class="section-title">Saved Layouts</div>
-                    <button class="secondary" onclick="openImportModal()">Import Layout</button>
+                    <button class="secondary" id="import-layout-button">Import Layout</button>
                 </div>
                 <div class="layout-list" id="layout-list">
                     <div class="empty-state">
@@ -101,7 +101,7 @@
         <div class="modal-card">
             <div class="modal-header">
                 <h3 id="modal-title"></h3>
-                <button class="modal-close" onclick="closeModal()">×</button>
+                <button class="modal-close">×</button>
             </div>
             <div class="modal-body">
                 <p id="modal-message"></p>
@@ -114,6 +114,6 @@
         </div>
     </div>
 
-    <script src="js/layouts.js" defer></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
