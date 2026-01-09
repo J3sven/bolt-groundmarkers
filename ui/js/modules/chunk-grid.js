@@ -2,6 +2,9 @@
 
 import State from './state.js';
 import Socket from './socket.js';
+
+const VIEW_SIZES = [64, 48, 32, 24, 16];
+
 const ChunkGridModule = (() => {
     const elements = {
         section: document.getElementById('chunk-grid-section'),
@@ -10,6 +13,7 @@ const ChunkGridModule = (() => {
         meta: document.getElementById('chunk-grid-meta'),
         colorSelect: document.getElementById('chunk-color-select')
     };
+    let zoomIndex = 0;
 
     function init() {
         const { container, colorSelect } = elements;
@@ -130,17 +134,8 @@ const ChunkGridModule = (() => {
             return;
         }
 
-        const { container } = elements;
-        if (!container) {
-            return;
-        }
-
-        const cell = event.target.closest('.grid-cell');
-        if (!cell || !container.contains(cell)) {
-            return;
-        }
-
-        if (!cell.classList.contains('marked')) {
+        const chunkGrid = State.getState().chunkGrid;
+        if (!chunkGrid) {
             return;
         }
 
@@ -148,10 +143,37 @@ const ChunkGridModule = (() => {
             return;
         }
 
+        if (event.shiftKey) {
+            handleHeightScroll(event, chunkGrid);
+            return;
+        }
+
+        event.preventDefault();
+        const direction = Math.sign(event.deltaY);
+        if (!direction) {
+            return;
+        }
+        if (direction < 0) {
+            zoomIn();
+        } else {
+            zoomOut();
+        }
+    }
+
+    function handleHeightScroll(event, chunkGrid) {
+        const { container } = elements;
+        if (!container) {
+            return;
+        }
+
+        const cell = event.target.closest('.grid-cell');
+        if (!cell || !container.contains(cell) || !cell.classList.contains('marked')) {
+            return;
+        }
+
         event.preventDefault();
 
         const direction = Math.sign(event.deltaY) > 0 ? -1 : 1;
-        const chunkGrid = State.getState().chunkGrid;
 
         Socket.sendToLua({
             action: 'adjust_chunk_tile_height',
@@ -161,6 +183,22 @@ const ChunkGridModule = (() => {
             directionLabel: direction < 0 ? 'down' : 'up',
             scope: chunkGrid ? chunkGrid.mode : null
         });
+    }
+
+    function zoomIn() {
+        if (zoomIndex < VIEW_SIZES.length - 1) {
+            zoomIndex++;
+            resetHover(true);
+            render();
+        }
+    }
+
+    function zoomOut() {
+        if (zoomIndex > 0) {
+            zoomIndex--;
+            resetHover(true);
+            render();
+        }
     }
 
     function syncSelectedColor(palette) {
@@ -195,6 +233,21 @@ const ChunkGridModule = (() => {
         colorSelect.value = String(State.getChunkSelectedColor());
     }
 
+    function getViewSize(chunkSize) {
+        const size = chunkSize || 64;
+        const desired = VIEW_SIZES[Math.min(zoomIndex, VIEW_SIZES.length - 1)];
+        return Math.min(size, desired);
+    }
+
+    function getViewportOrigin(playerCoord, chunkSize, viewSize) {
+        if (!Number.isFinite(playerCoord)) {
+            return Math.max(0, Math.floor((chunkSize - viewSize) / 2));
+        }
+        const half = Math.floor(viewSize / 2);
+        const raw = playerCoord - half;
+        return Math.max(0, Math.min(chunkSize - viewSize, raw));
+    }
+
     function render() {
         const { section, container, help, meta } = elements;
         if (!section || !container) {
@@ -219,6 +272,13 @@ const ChunkGridModule = (() => {
         const enabled = !!gridData.enabled;
         section.classList.toggle('chunk-grid-disabled', !enabled);
 
+        const chunkSize = gridData.size || 64;
+        const viewSize = getViewSize(chunkSize);
+        const playerLocalX = Number.isFinite(gridData.playerLocalX) ? gridData.playerLocalX : Math.floor(chunkSize / 2);
+        const playerLocalZ = Number.isFinite(gridData.playerLocalZ) ? gridData.playerLocalZ : Math.floor(chunkSize / 2);
+        const viewStartX = getViewportOrigin(playerLocalX, chunkSize, viewSize);
+        const viewStartZ = getViewportOrigin(playerLocalZ, chunkSize, viewSize);
+
         if (help) {
             if (enabled) {
                 const modeLabel = gridData.mode === 'instance'
@@ -228,7 +288,7 @@ const ChunkGridModule = (() => {
                 const selected = palette.find((entry) => entry.index === State.getChunkSelectedColor());
                 const colorLabel = selected ? selected.name : `Color ${State.getChunkSelectedColor()}`;
                 const colorCode = selected ? selected.hex : '#ffffff';
-                help.innerHTML = `Editing ${modeLabel} using <span style="color: ${colorCode}">${colorLabel}</span>. Hover to preview tiles, click to mark/unmark, and scroll over a marked tile to adjust its height. Orange shows where you stand.`;
+                help.innerHTML = `Editing ${modeLabel} using <span style="color: ${colorCode}">${colorLabel}</span>. Scroll to zoom, hover to preview tiles, click to mark/unmark, and <strong>Shift+Scroll</strong> over a marked tile to adjust its height. Orange shows where you stand.`;
             } else {
                 help.textContent = 'Chunk information unavailable.';
             }
@@ -241,7 +301,12 @@ const ChunkGridModule = (() => {
                 localLabel = `Local (${gridData.playerLocalX}, ${gridData.playerLocalZ})`;
             }
             const modeLabel = gridData.mode === 'instance' ? 'Instance Tiles' : 'World Markers';
-            meta.textContent = `${chunkLabel} • ${localLabel} • ${modeLabel}`;
+            const zoomFactor = chunkSize / viewSize;
+            const zoomLabelValue = viewSize === chunkSize
+                ? '1'
+                : (Number.isInteger(zoomFactor) ? zoomFactor.toFixed(0) : zoomFactor.toFixed(1));
+            const zoomLabel = `Zoom ${zoomLabelValue}×`;
+            meta.textContent = `${chunkLabel} • ${localLabel} • ${modeLabel} • ${zoomLabel}`;
         }
 
         if (!enabled) {
@@ -250,7 +315,8 @@ const ChunkGridModule = (() => {
             return;
         }
 
-        const size = gridData.size || 64;
+        container.style.gridTemplateColumns = `repeat(${viewSize}, minmax(0, 1fr))`;
+
         const marked = gridData.marked || [];
         const markedSet = new Set(
             marked
@@ -259,9 +325,10 @@ const ChunkGridModule = (() => {
         );
 
         let html = '';
-        for (let displayZ = 0; displayZ < size; displayZ++) {
-            const localZ = size - 1 - displayZ;
-            for (let localX = 0; localX < size; localX++) {
+        for (let displayZ = 0; displayZ < viewSize; displayZ++) {
+            const localZ = viewStartZ + viewSize - 1 - displayZ;
+            for (let offsetX = 0; offsetX < viewSize; offsetX++) {
+                const localX = viewStartX + offsetX;
                 const key = `${localX},${localZ}`;
                 const classes = ['grid-cell'];
                 if (markedSet.has(key)) {
