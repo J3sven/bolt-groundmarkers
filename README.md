@@ -6,9 +6,8 @@ Ground Markers is a [Bolt launcher](https://github.com/adamcake/Bolt) plugin for
 ---
 
 ## Installation
-1. Copy this directory (or the packaged release) into your Bolt `plugins` folder.
-2. Launch Bolt and enable **Ground Markers** in the Plugin Manager.
-3. A small tile launcher button appears in-game. Click it to toggle the UI and **Shift+Drag** it to reposition.
+Copy the following URL and add it as a custom plugin in Bolt:
+```https://j3sven.github.io/bolt-groundmarkers/dist/meta.json```
 
 ---
 
