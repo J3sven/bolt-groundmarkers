@@ -107,6 +107,7 @@ h1 {
     display: flex;
     gap: 8px;
     margin-bottom: 12px;
+    justify-self: center;
 }
 input[type="text"] {
     flex: 1;
