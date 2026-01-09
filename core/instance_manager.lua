@@ -1,5 +1,6 @@
 -- core/instance_manager.lua - Simplified instance management with user control
 local M = {}
+local colors = require("core.colors")
 
 -- Internal state
 local state = {
@@ -194,7 +195,8 @@ function M.setHoverTile(localX, localZ)
         localX = localX,
         localZ = localZ,
         floor = state.playerFloor or 0,
-        previewColor = {255, 255, 255}
+        previewColor = {255, 255, 255},
+        previewAlpha = 45
     }
 
     return true
@@ -237,11 +239,21 @@ function M.toggleTileAtLocal(localX, localZ, colorIndex, bolt)
         return true
     end
 
+    local paletteCount = colors.count and colors.count() or 1
+    local safeColorIndex = tonumber(colorIndex) or 1
+    safeColorIndex = math.floor(safeColorIndex + 0.5)
+    if paletteCount > 0 then
+        if safeColorIndex < 1 then safeColorIndex = 1 end
+        if safeColorIndex > paletteCount then safeColorIndex = paletteCount end
+    else
+        safeColorIndex = 1
+    end
+
     local tileData = {
         x = worldX,
         z = worldZ,
         y = state.playerWorldY or 0,
-        colorIndex = colorIndex or 1,
+        colorIndex = safeColorIndex,
         chunkX = chunkX,
         chunkZ = chunkZ,
         localX = localX,

@@ -1,6 +1,8 @@
 -- core/gui_bridge.lua - Bridge between Lua and Browser UI
 local M = {}
 
+local colors = require("core.colors")
+
 local browser = nil
 local isOpen = false
 local lastUpdateFrame = 0
@@ -175,12 +177,17 @@ function M.sendStateUpdate(state, bolt)
         chunkGrid.marked = {}
     end
 
+    local palette = colors.getPaletteForUI()
+    local currentColorIndex = state.getCurrentColorIndex and state.getCurrentColorIndex() or 1
+
     local message = {
         type = "state_update",
         inInstance = managerState.inInstance,
         tempTileCount = managerState.tempTileCount,
         activeLayoutId = managerState.currentLayoutId,
-        chunkGrid = chunkGrid
+        chunkGrid = chunkGrid,
+        palette = palette,
+        currentColorIndex = currentColorIndex
     }
 
     local json = encodeJSON(message)
@@ -324,8 +331,9 @@ function M.handleBrowserMessage(bolt, state, data)
         local localZ = tonumber(data.localZ)
         if localX and localZ then
             local scope = data.scope or (instanceManager.isInInstance() and "instance" or "world")
+            local requestedColorIndex = tonumber(data.colorIndex)
             if scope == "instance" then
-                local colorIndex = state.getCurrentColorIndex and state.getCurrentColorIndex() or 1
+                local colorIndex = requestedColorIndex or (state.getCurrentColorIndex and state.getCurrentColorIndex() or 1)
                 if instanceManager.toggleTileAtLocal(localX, localZ, colorIndex, bolt) then
                     M.sendStateUpdate(state, bolt)
                 end
@@ -333,7 +341,7 @@ function M.handleBrowserMessage(bolt, state, data)
                 local chunkInfo = instanceManager.getChunkSnapshot()
                 if chunkInfo then
                     local tiles = require("core.tiles")
-                    local currentColor = state.getCurrentColorIndex and state.getCurrentColorIndex() or 1
+                    local currentColor = requestedColorIndex or (state.getCurrentColorIndex and state.getCurrentColorIndex() or 1)
                     if tiles.toggleWorldTileAtChunkLocal(
                         state,
                         bolt,
@@ -360,6 +368,18 @@ function M.handleBrowserMessage(bolt, state, data)
             if localX and localZ then
                 instanceManager.setHoverTile(localX, localZ)
             end
+        end
+
+    elseif data.action == "update_palette_color" then
+        local index = tonumber(data.index)
+        if not index then return end
+
+        local rgb = colors.hexToRgb(data.color)
+        if not rgb then return end
+
+        local updated = colors.setPaletteEntry(index, rgb, data.name, bolt)
+        if updated then
+            M.sendStateUpdate(state, bolt)
         end
     end
 end

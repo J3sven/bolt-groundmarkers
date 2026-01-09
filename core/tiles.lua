@@ -177,11 +177,23 @@ function M.toggleWorldTileAtChunkLocal(state, bolt, chunkX, chunkZ, localX, loca
         return true
     end
 
+    local paletteCount = 1
+    if state.getColors then
+        local paletteModule = state.getColors()
+        if paletteModule and paletteModule.count then
+            paletteCount = math.max(1, paletteModule.count())
+        end
+    end
+    local safeColorIndex = tonumber(colorIndex) or (state.getCurrentColorIndex and state.getCurrentColorIndex() or 1)
+    safeColorIndex = math.floor(safeColorIndex + 0.5)
+    if safeColorIndex < 1 then safeColorIndex = 1 end
+    if safeColorIndex > paletteCount then safeColorIndex = paletteCount end
+
     local markerData = {
         x = worldX,
         z = worldZ,
         y = worldY or 0,
-        colorIndex = colorIndex or state.getCurrentColorIndex(),
+        colorIndex = safeColorIndex,
         chunkX = chunkX,
         chunkZ = chunkZ,
         localX = localX,

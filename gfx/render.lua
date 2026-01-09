@@ -213,10 +213,12 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
     for _, t in ipairs(tilesToRender) do
       local key
       local rgbOverride = nil
+      local alphaOverride = nil
 
       if t.previewColor then
         key = string.format("preview:%d,%d,%d", t.previewColor[1] or 0, t.previewColor[2] or 0, t.previewColor[3] or 0)
         rgbOverride = t.previewColor
+        alphaOverride = t.previewAlpha
       else
         key = tostring(t.colorIndex or 1)
       end
@@ -224,8 +226,13 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
       if not groups[key] then
         groups[key] = {
           tiles = {},
-          rgb = rgbOverride or colors.get(t.colorIndex or 1)
+          rgb = rgbOverride or colors.get(t.colorIndex or 1),
+          alpha = alphaOverride
         }
+      end
+
+      if alphaOverride then
+        groups[key].alpha = alphaOverride
       end
 
       table.insert(groups[key].tiles, t)
@@ -233,7 +240,7 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     for _, group in pairs(groups) do
       if #group.tiles > 0 then
-        local coloredSurface = surfaces.createColoredSurface(bolt, group.rgb)
+        local coloredSurface = surfaces.createColoredSurface(bolt, group.rgb, group.alpha)
         if not coloredSurface then goto continue_color end
 
         local uniqueEdges = computeUniqueEdges(group.tiles, coords)

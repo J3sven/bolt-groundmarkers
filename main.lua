@@ -13,6 +13,9 @@ local hooks = require("core.hooks")
 local instanceManager = require("core.instance_manager")
 local guiBridge = require("core.gui_bridge")
 
+-- Initialize color palette before other modules consume it
+colors.init(bolt)
+
 -- Initialize core modules
 state.init({ bolt = bolt, colors = colors, coords = coords })
 state.setMarkerSurface(surfaces.createMarkerSurface(bolt))

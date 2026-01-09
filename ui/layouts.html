@@ -316,6 +316,91 @@
             background: rgba(255, 255, 255, 0.9);
         }
 
+        .chunk-grid-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .chunk-grid-controls label {
+            font-size: 12px;
+            color: #aaa;
+            min-width: 90px;
+        }
+
+        select {
+            flex: 1;
+            padding: 6px 10px;
+            background: rgba(20, 20, 30, 0.8);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 13px;
+        }
+
+        .palette-editor {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .palette-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            flex-wrap: wrap;
+        }
+
+        .palette-color-preview {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+        }
+
+        .palette-fields {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            flex-wrap: wrap;
+        }
+
+        .palette-fields label {
+            display: flex;
+            flex-direction: column;
+            font-size: 11px;
+            color: #aaa;
+            gap: 4px;
+        }
+
+        .palette-fields input[type="text"] {
+            width: 180px;
+        }
+
+        .palette-fields input[type="color"] {
+            width: 60px;
+            height: 34px;
+            padding: 0;
+            border: none;
+            background: transparent;
+        }
+
+        .palette-save {
+            padding: 8px 14px;
+            font-size: 12px;
+        }
+
+        .palette-empty {
+            text-align: center;
+            font-size: 13px;
+            color: #888;
+        }
+
         .toggle-switch {
             display: inline-flex;
             align-items: center;
@@ -436,6 +521,7 @@
         <div class="view-toggle">
             <button class="view-button active" data-view="layouts">Layouts</button>
             <button class="view-button" data-view="chunk">Chunk Map</button>
+            <button class="view-button" data-view="palette">Palette</button>
         </div>
 
         <div id="view-layouts" class="view-panel active">
@@ -468,6 +554,10 @@
                     Loading chunk information...
                 </p>
                 <div class="chunk-grid-wrapper">
+                    <div class="chunk-grid-controls">
+                        <label for="chunk-color-select">Marker Color</label>
+                        <select id="chunk-color-select" disabled></select>
+                    </div>
                     <div class="chunk-grid-meta" id="chunk-grid-meta">Chunk (--, --)</div>
                     <div class="chunk-grid" id="chunk-grid"></div>
                     <div class="chunk-grid-legend">
@@ -475,6 +565,18 @@
                         <span><span class="legend-swatch marked"></span>Marked</span>
                         <span><span class="legend-swatch hover"></span>Hover Preview</span>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-palette" class="view-panel">
+            <div class="section">
+                <div class="section-title">Custom Color Palette</div>
+                <p class="help-text">
+                    Adjust the colors used for markers and chunk editing. Changes apply immediately and sync with your layouts.
+                </p>
+                <div class="palette-editor" id="palette-editor">
+                    <p class="palette-empty">Loading palette…</p>
                 </div>
             </div>
         </div>
@@ -486,18 +588,24 @@
             tempTileCount: 0,
             activeLayoutId: null,
             layouts: [],
-            chunkGrid: null
+            chunkGrid: null,
+            palette: [],
+            currentColorIndex: 1
         };
 
         const chunkGridSection = document.getElementById('chunk-grid-section');
         const chunkGridContainer = document.getElementById('chunk-grid');
         const chunkGridHelp = document.getElementById('chunk-grid-help');
         const chunkGridMeta = document.getElementById('chunk-grid-meta');
+        const chunkColorSelect = document.getElementById('chunk-color-select');
+        const paletteEditor = document.getElementById('palette-editor');
         let chunkGridHoverKey = null;
+        let chunkSelectedColorIndex = 1;
         const viewButtons = document.querySelectorAll('.view-button');
         const viewPanels = {
             layouts: document.getElementById('view-layouts'),
-            chunk: document.getElementById('view-chunk')
+            chunk: document.getElementById('view-chunk'),
+            palette: document.getElementById('view-palette')
         };
         let activeView = 'layouts';
 
@@ -537,6 +645,9 @@
             if (parsedData.type === 'state_update') {
                 currentState = { ...currentState, ...parsedData };
                 currentState.chunkGrid = parsedData.chunkGrid || null;
+                currentState.palette = parsedData.palette || currentState.palette;
+                currentState.currentColorIndex = parsedData.currentColorIndex || currentState.currentColorIndex || 1;
+                syncChunkColorSelection();
                 updateUI();
             } else if (parsedData.type === 'layouts_update') {
                 currentState.layouts = parsedData.layouts || [];
@@ -576,6 +687,8 @@
 
             // Update layouts list
             updateChunkGrid();
+            updateChunkColorSelect();
+            renderPaletteEditor();
             updateLayoutsList();
         }
 
@@ -617,6 +730,93 @@
             }).join('');
         }
 
+        function syncChunkColorSelection() {
+            const palette = currentState.palette || [];
+            if (palette.length === 0) {
+                chunkSelectedColorIndex = 1;
+                return;
+            }
+
+            const hasSelection = palette.some(entry => entry.index === chunkSelectedColorIndex);
+            if (!hasSelection) {
+                const fallback = palette.find(entry => entry.index === currentState.currentColorIndex) || palette[0];
+                chunkSelectedColorIndex = fallback.index;
+            }
+        }
+
+        function getSelectedChunkColorName() {
+            const palette = currentState.palette || [];
+            const found = palette.find(entry => entry.index === chunkSelectedColorIndex);
+            return found ? found.name : `Color ${chunkSelectedColorIndex}`;
+        }
+
+        function getSelectedChunkColorCode() {
+            const palette = currentState.palette || [];
+            const found = palette.find(entry => entry.index === chunkSelectedColorIndex);
+            return found ? found.hex : '#ffffff';
+        }
+
+        function updateChunkColorSelect() {
+            if (!chunkColorSelect) {
+                return;
+            }
+
+            const palette = currentState.palette || [];
+            if (palette.length === 0) {
+                chunkColorSelect.innerHTML = '<option>No colors available</option>';
+                chunkColorSelect.disabled = true;
+                return;
+            }
+
+            const optionsHtml = palette.map(entry => {
+                const label = escapeHtml(entry.name || `Color ${entry.index}`);
+                return `<option value="${entry.index}">${label}</option>`;
+            }).join('');
+
+            chunkColorSelect.innerHTML = optionsHtml;
+            chunkColorSelect.disabled = false;
+            chunkColorSelect.value = String(chunkSelectedColorIndex);
+        }
+
+        function renderPaletteEditor() {
+            if (!paletteEditor) {
+                return;
+            }
+
+            const palette = currentState.palette || [];
+            if (palette.length === 0) {
+                paletteEditor.innerHTML = '<p class="palette-empty">Palette unavailable.</p>';
+                return;
+            }
+
+            paletteEditor.innerHTML = palette.map(entry => {
+                const safeName = escapeHtml(entry.name || `Color ${entry.index}`);
+                const hex = entry.hex || '#ffffff';
+                return `
+                    <div class="palette-row" data-index="${entry.index}">
+                        <div class="palette-color-preview" style="background:${hex};"></div>
+                        <div class="palette-fields">
+                            <label>
+                                Name
+                                <input type="text" class="palette-name-input" value="${safeName}">
+                            </label>
+                            <label>
+                                Color
+                                <input type="color" class="palette-color-input" value="${hex}">
+                            </label>
+                        </div>
+                        <button class="palette-save" data-index="${entry.index}">Save</button>
+                    </div>
+                `;
+            }).join('');
+
+            paletteEditor.querySelectorAll('.palette-save').forEach(button => {
+                button.addEventListener('click', () => {
+                    savePaletteEntry(Number(button.dataset.index));
+                });
+            });
+        }
+
         function isChunkGridInteractive() {
             return currentState.chunkGrid && currentState.chunkGrid.enabled;
         }
@@ -633,6 +833,37 @@
                 sendToLua({ action: 'hover_chunk_tile', clear: true });
             }
             chunkGridHoverKey = null;
+        }
+
+        function savePaletteEntry(index) {
+            if (!paletteEditor) {
+                return;
+            }
+
+            const row = paletteEditor.querySelector(`.palette-row[data-index="${index}"]`);
+            if (!row) {
+                return;
+            }
+
+            const nameInput = row.querySelector('.palette-name-input');
+            const colorInput = row.querySelector('.palette-color-input');
+            if (!colorInput || !colorInput.value) {
+                alert('Please pick a color.');
+                return;
+            }
+
+            const hex = colorInput.value.trim();
+            if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
+                alert('Please provide a valid hex color.');
+                return;
+            }
+
+            sendToLua({
+                action: 'update_palette_color',
+                index: index,
+                name: nameInput ? nameInput.value.trim() : '',
+                color: hex
+            });
         }
 
         function updateChunkGrid() {
@@ -663,7 +894,9 @@
                     const modeLabel = gridData.mode === 'instance'
                         ? 'Instance temporary tiles'
                         : 'World markers';
-                    chunkGridHelp.textContent = `Editing ${modeLabel}. Hover to preview tiles, click to mark/unmark. Orange shows where you stand.`;
+                    const colorLabel = getSelectedChunkColorName();
+                    const colorCode = getSelectedChunkColorCode();
+                    chunkGridHelp.innerHTML = `Editing ${modeLabel} using <span style="color: ${colorCode}">${colorLabel}</span>. Hover to preview tiles, click to mark/unmark. Orange shows where you stand.`;
                 } else {
                     chunkGridHelp.textContent = 'Chunk information unavailable.';
                 }
@@ -766,7 +999,8 @@
                 action: 'toggle_chunk_tile',
                 localX: Number(cell.dataset.localX),
                 localZ: Number(cell.dataset.localZ),
-                scope: currentState.chunkGrid ? currentState.chunkGrid.mode : null
+                scope: currentState.chunkGrid ? currentState.chunkGrid.mode : null,
+                colorIndex: chunkSelectedColorIndex
             });
         }
 
@@ -909,6 +1143,16 @@
             chunkGridContainer.addEventListener('mouseover', handleChunkGridHover);
             chunkGridContainer.addEventListener('mouseleave', handleChunkGridLeave);
             chunkGridContainer.addEventListener('click', handleChunkGridClick);
+        }
+
+        if (chunkColorSelect) {
+            chunkColorSelect.addEventListener('change', () => {
+                const parsed = Number(chunkColorSelect.value);
+                if (!Number.isNaN(parsed)) {
+                    chunkSelectedColorIndex = parsed;
+                    updateChunkGrid();
+                }
+            });
         }
 
         viewButtons.forEach(button => {
