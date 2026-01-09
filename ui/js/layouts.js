@@ -35,6 +35,7 @@
     const modalPrimaryButton = document.getElementById('modal-primary-button');
     const modalSecondaryButton = document.getElementById('modal-secondary-button');
     let modalState = null;
+    let lastPaletteSignature = null;
 
     window.addEventListener('message', (event) => {
         let data = event.data;
@@ -326,6 +327,13 @@
         chunkColorSelect.value = String(chunkSelectedColorIndex);
     }
 
+    function getPaletteSignature(palette) {
+        if (!palette || palette.length === 0) {
+            return 'empty';
+        }
+        return palette.map((entry) => `${entry.index}:${entry.name || ''}:${entry.hex || ''}`).join('|');
+    }
+
     function renderPaletteEditor() {
         if (!paletteEditor) {
             return;
@@ -334,23 +342,26 @@
         const palette = currentState.palette || [];
         if (palette.length === 0) {
             paletteEditor.innerHTML = '<p class="palette-empty">Palette unavailable.</p>';
+            lastPaletteSignature = 'empty';
             return;
         }
+
+        const signature = getPaletteSignature(palette);
+        if (signature === lastPaletteSignature && paletteEditor.childElementCount > 0) {
+            return;
+        }
+        lastPaletteSignature = signature;
 
         paletteEditor.innerHTML = palette.map((entry) => {
             const safeName = escapeHtml(entry.name || `Color ${entry.index}`);
             const hex = entry.hex || '#ffffff';
             return `
                 <div class="palette-row" data-index="${entry.index}">
-                    <div class="palette-color-preview" style="background:${hex};"></div>
+                    <input type="color" class="palette-color-input" value="${hex}" aria-label="Pick color for ${safeName}">
                     <div class="palette-fields">
                         <label>
                             Name
                             <input type="text" class="palette-name-input" value="${safeName}">
-                        </label>
-                        <label>
-                            Color
-                            <input type="color" class="palette-color-input" value="${hex}">
                         </label>
                     </div>
                     <button class="palette-save" data-index="${entry.index}">Save</button>
