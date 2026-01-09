@@ -24,16 +24,19 @@ local function decodeJSON(str)
         result[key] = value
     end
 
+    -- Match numeric values (supporting negatives and decimals)
+    for key, value in str:gmatch('"([^"]+)"%s*:%s*(-?%d+%.?%d*)') do
+        result[key] = tonumber(value)
+    end
+
     -- Also try to match boolean and null values
-    for key, value in str:gmatch('"([^"]+)"%s*:%s*([%w]+)') do
+    for key, value in str:gmatch('"([^"]+)"%s*:%s*(true|false|null)') do
         if value == "true" then
             result[key] = true
         elseif value == "false" then
             result[key] = false
         elseif value == "null" then
             result[key] = nil
-        elseif not result[key] then  -- Don't overwrite string values
-            result[key] = value
         end
     end
 
@@ -380,6 +383,37 @@ function M.handleBrowserMessage(bolt, state, data)
         local updated = colors.setPaletteEntry(index, rgb, data.name, bolt)
         if updated then
             M.sendStateUpdate(state, bolt)
+        end
+
+    elseif data.action == "adjust_chunk_tile_height" then
+        local localX = tonumber(data.localX)
+        local localZ = tonumber(data.localZ)
+        local direction = tonumber(data.direction)
+        if not (localX and localZ and direction and direction ~= 0) then
+            return
+        end
+
+        local scope = data.scope or (instanceManager.isInInstance() and "instance" or "world")
+        if scope == "instance" then
+            if instanceManager.adjustInstanceTileHeight(localX, localZ, direction, bolt) then
+                M.sendStateUpdate(state, bolt)
+            end
+        else
+            local chunkInfo = instanceManager.getChunkSnapshot()
+            if chunkInfo then
+                local tiles = require("core.tiles")
+                if tiles.adjustWorldTileHeight(
+                    state,
+                    bolt,
+                    chunkInfo.chunkX,
+                    chunkInfo.chunkZ,
+                    localX,
+                    localZ,
+                    direction
+                ) then
+                    M.sendStateUpdate(state, bolt)
+                end
+            end
         end
     end
 end

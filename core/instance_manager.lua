@@ -1,6 +1,7 @@
 -- core/instance_manager.lua - Simplified instance management with user control
 local M = {}
 local colors = require("core.colors")
+local HEIGHT_STEP = 25
 
 -- Internal state
 local state = {
@@ -73,7 +74,6 @@ function M.update(bolt)
     if not state.inInstance and wasInInstance then
         -- Clear temporary tiles when leaving instance
         state.instanceTiles = {}
-        state.currentLayoutId = nil
         state.hoverPreview = nil
         bolt.saveconfig("instance_debug.txt", string.format(
             "LEFT instance at chunk (%d, %d)", chunkX, chunkZ
@@ -267,6 +267,48 @@ function M.toggleTileAtLocal(localX, localZ, colorIndex, bolt)
         bolt.saveconfig("marker_debug.txt", string.format(
             "Added grid-marked tile at chunk (%d,%d) local (%d,%d)",
             chunkX, chunkZ, localX, localZ))
+    end
+
+    return true
+end
+
+function M.adjustInstanceTileHeight(localX, localZ, deltaSteps, bolt)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+
+    local steps = tonumber(deltaSteps) or 0
+    if steps == 0 then
+        return false
+    end
+
+    if not localX or not localZ or not state.inInstance then
+        return false
+    end
+
+    if not state.currentChunkX or not state.currentChunkZ then
+        return false
+    end
+
+    local coords = require("core.coords")
+    local chunkX, chunkZ = state.currentChunkX, state.currentChunkZ
+    local tileX = chunkX * 64 + localX
+    local tileZ = chunkZ * 64 + localZ
+    local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+    local key = coords.tileKey(worldX, worldZ)
+    local tile = state.instanceTiles[key]
+
+    if not tile then
+        return false
+    end
+
+    local newY = (tile.y or state.playerWorldY or 0) + steps * HEIGHT_STEP
+    tile.y = newY
+    tile.worldY = newY
+
+    if bolt then
+        bolt.saveconfig("marker_debug.txt", string.format(
+            "Adjusted instance tile height at chunk (%d,%d) local (%d,%d) by %d (new Y=%.1f)",
+            chunkX, chunkZ, localX, localZ, steps * HEIGHT_STEP, newY))
     end
 
     return true

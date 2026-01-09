@@ -509,7 +509,7 @@
                 <span class="status-value" id="instance-status">Not in Instance</span>
             </div>
             <div class="status-row">
-                <span class="status-label">Temporary Tiles:</span>
+                <span class="status-label">Unsaved Tiles:</span>
                 <span class="status-value" id="temp-tiles">0</span>
             </div>
             <div class="status-row">
@@ -893,10 +893,10 @@
                 if (enabled) {
                     const modeLabel = gridData.mode === 'instance'
                         ? 'Instance temporary tiles'
-                        : 'World markers';
+                        : 'Tile markers';
                     const colorLabel = getSelectedChunkColorName();
                     const colorCode = getSelectedChunkColorCode();
-                    chunkGridHelp.innerHTML = `Editing ${modeLabel} using <span style="color: ${colorCode}">${colorLabel}</span>. Hover to preview tiles, click to mark/unmark. Orange shows where you stand.`;
+                    chunkGridHelp.innerHTML = `Editing ${modeLabel} using <span style="color: ${colorCode}">${colorLabel}</span>. Hover to preview tiles, click to mark/unmark, and scroll over a marked tile to adjust its height. Orange shows where you stand.`;
                 } else {
                     chunkGridHelp.textContent = 'Chunk information unavailable.';
                 }
@@ -1001,6 +1001,37 @@
                 localZ: Number(cell.dataset.localZ),
                 scope: currentState.chunkGrid ? currentState.chunkGrid.mode : null,
                 colorIndex: chunkSelectedColorIndex
+            });
+        }
+
+        function handleChunkGridWheel(event) {
+            if (!isChunkGridInteractive()) {
+                return;
+            }
+
+            const cell = event.target.closest('.grid-cell');
+            if (!cell || !chunkGridContainer.contains(cell)) {
+                return;
+            }
+
+            if (!cell.classList.contains('marked')) {
+                return;
+            }
+
+            if (!event.deltaY) {
+                return;
+            }
+
+            event.preventDefault();
+
+            const direction = event.deltaY > 0 ? -1 : 1;
+
+            sendToLua({
+                action: 'adjust_chunk_tile_height',
+                localX: Number(cell.dataset.localX),
+                localZ: Number(cell.dataset.localZ),
+                direction: direction,
+                scope: currentState.chunkGrid ? currentState.chunkGrid.mode : null
             });
         }
 
@@ -1143,6 +1174,7 @@
             chunkGridContainer.addEventListener('mouseover', handleChunkGridHover);
             chunkGridContainer.addEventListener('mouseleave', handleChunkGridLeave);
             chunkGridContainer.addEventListener('click', handleChunkGridClick);
+            chunkGridContainer.addEventListener('wheel', handleChunkGridWheel, { passive: false });
         }
 
         if (chunkColorSelect) {

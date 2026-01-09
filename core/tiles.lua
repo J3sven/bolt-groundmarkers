@@ -1,5 +1,6 @@
 local M = {}
 local persistence = require("data.persistence")
+local HEIGHT_STEP = 25
 
 local function count(tbl) local c=0 for _ in pairs(tbl) do c=c+1 end return c end
 
@@ -208,6 +209,46 @@ function M.toggleWorldTileAtChunkLocal(state, bolt, chunkX, chunkZ, localX, loca
         bolt.saveconfig("marker_debug.txt", string.format(
             "Added world marker via grid at chunk (%d,%d) local (%d,%d)",
             chunkX, chunkZ, localX, localZ))
+    end
+
+    return true
+end
+
+function M.adjustWorldTileHeight(state, bolt, chunkX, chunkZ, localX, localZ, deltaSteps)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+
+    local steps = tonumber(deltaSteps) or 0
+    if steps == 0 then
+        return false
+    end
+
+    if not chunkX or not chunkZ or not localX or not localZ then
+        return false
+    end
+
+    local coords = state.getCoords()
+    local tileX = chunkX * 64 + localX
+    local tileZ = chunkZ * 64 + localZ
+    local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+    local key = coords.tileKey(worldX, worldZ)
+
+    local marked = state.getMarkedTiles()
+    local tile = marked[key]
+    if not tile then
+        return false
+    end
+
+    local baseY = tile.y or tile.worldY or 0
+    local newY = baseY + steps * HEIGHT_STEP
+    tile.y = newY
+    tile.worldY = newY
+    persistence.saveMarkers(state, bolt)
+
+    if bolt then
+        bolt.saveconfig("marker_debug.txt", string.format(
+            "Adjusted world marker height at chunk (%d,%d) local (%d,%d) by %d (new Y=%.1f)",
+            chunkX, chunkZ, localX, localZ, steps * HEIGHT_STEP, newY))
     end
 
     return true
