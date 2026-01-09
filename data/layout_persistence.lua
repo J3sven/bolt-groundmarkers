@@ -1,178 +1,241 @@
 -- data/layout_persistence.lua - Persistence for instance tile layouts
 local M = {}
 
+local simplejson = require("core.simplejson")
+
 local LAYOUTS_FILE = "instance_layouts.json"
 
--- Simple JSON decoder for our specific format
+local function sanitizeDisplayName(name, fallback)
+    if type(name) ~= "string" then
+        name = fallback
+    end
+    if type(name) ~= "string" then
+        return nil
+    end
+    local trimmed = (name:match("^%s*(.-)%s*$") or ""):gsub("[%c]", "")
+    if trimmed == "" then
+        return nil
+    end
+    if #trimmed > 80 then
+        trimmed = trimmed:sub(1, 80)
+    end
+    return trimmed
+end
+
+local function sanitizeStoredName(name, fallback)
+    local pretty = sanitizeDisplayName(name, fallback) or "Layout"
+    local cleaned = pretty:gsub("[^%w%s%-_]", "")
+    cleaned = cleaned:gsub("%s+", " ")
+    if cleaned == "" then
+        cleaned = "Layout"
+    end
+    if #cleaned > 60 then
+        cleaned = cleaned:sub(1, 60)
+    end
+    return cleaned
+end
+
+local function normalizeTile(tile)
+    local localX = tonumber(tile.localX)
+    local localZ = tonumber(tile.localZ)
+    if not localX or not localZ then
+        return nil
+    end
+    localX = math.floor(localX + 0.5)
+    localZ = math.floor(localZ + 0.5)
+    if localX < 0 or localX > 63 or localZ < 0 or localZ > 63 then
+        return nil
+    end
+
+    local worldY = tonumber(tile.worldY) or 0
+    local colorIndex = tonumber(tile.colorIndex) or 1
+    colorIndex = math.floor(colorIndex + 0.5)
+    if colorIndex < 1 then
+        colorIndex = 1
+    end
+
+    return {
+        localX = localX,
+        localZ = localZ,
+        worldY = worldY,
+        colorIndex = colorIndex
+    }
+end
+
+local function normalizeLayoutEntry(layout, fallbackIndex)
+    if type(layout) ~= "table" then
+        return nil
+    end
+
+    layout.id = layout.id or ("layout_" .. tostring(fallbackIndex or 0))
+    layout.name = sanitizeStoredName(layout.name, layout.displayName or layout.id)
+    layout.displayName = sanitizeDisplayName(layout.displayName, layout.name) or layout.name
+    layout.created = tonumber(layout.created) or fallbackIndex or 0
+
+    local normalizedTiles = {}
+    if type(layout.tiles) == "table" then
+        for _, tile in ipairs(layout.tiles) do
+            local normalized = normalizeTile(tile)
+            if normalized then
+                table.insert(normalizedTiles, normalized)
+            end
+        end
+    end
+    layout.tiles = normalizedTiles
+
+    return layout
+end
+
 local function decodeLayoutsJSON(jsonStr)
-    -- Remove whitespace for easier parsing
     jsonStr = jsonStr:gsub("%s+", "")
-
-    -- Extract version
     local version = jsonStr:match('"version":(%d+)')
-
-    -- Find the layouts array - use greedy match
     local layoutsStr = jsonStr:match('"layouts":%[(.*)%]')
     if not layoutsStr then
-        return {version = tonumber(version) or 1, layouts = {}}
+        return { version = tonumber(version) or 1, layouts = {} }
     end
 
     local layouts = {}
-    local layoutCount = 0
-    local skippedCount = 0
-
-    -- Parse each layout object
     for layoutStr in layoutsStr:gmatch('%b{}') do
-        layoutCount = layoutCount + 1
         local layout = {}
-
-        -- Extract layout fields (allow empty strings with [^"]*)
         layout.id = layoutStr:match('"id":"([^"]*)"')
         layout.name = layoutStr:match('"name":"([^"]*)"')
+        layout.displayName = layoutStr:match('"displayName":"([^"]*)"')
         layout.created = tonumber(layoutStr:match('"created":(%d+)'))
 
-        -- Skip layouts with empty id or name
-        if not layout.id or layout.id == "" or not layout.name or layout.name == "" then
-            skippedCount = skippedCount + 1
-        else
-            -- Extract tiles array
+        if layout.id and layout.name then
             local tilesStr = layoutStr:match('"tiles":%[(.-)%]')
             layout.tiles = {}
-
             if tilesStr then
                 for tileStr in tilesStr:gmatch('%b{}') do
                     local tile = {}
-                    tile.localX = tonumber(tileStr:match('"localX":(%d+)'))
-                    tile.localZ = tonumber(tileStr:match('"localZ":(%d+)'))
+                    tile.localX = tonumber(tileStr:match('"localX":(%-?%d+)'))
+                    tile.localZ = tonumber(tileStr:match('"localZ":(%-?%d+)'))
                     tile.worldY = tonumber(tileStr:match('"worldY":(%-?%d+%.?%d*)'))
                     tile.colorIndex = tonumber(tileStr:match('"colorIndex":(%d+)'))
                     table.insert(layout.tiles, tile)
                 end
             end
-
             table.insert(layouts, layout)
         end
     end
 
-    -- Debug info
-    if layoutCount > 0 then
-        local debugMsg = string.format("Parsed %d layouts, skipped %d empty, kept %d",
-            layoutCount, skippedCount, #layouts)
-        if layouts[1] then
-            debugMsg = debugMsg .. string.format(" - First: id=%s name=%s",
-                tostring(layouts[1].id), tostring(layouts[1].name))
-        end
-        -- We can't use bolt here, so just return the data
-    end
-
-    return {version = tonumber(version) or 1, layouts = layouts}
+    return { version = tonumber(version) or 1, layouts = layouts }
 end
 
 -- Load all saved layouts
 function M.loadLayouts(bolt)
     local saved = bolt.loadconfig(LAYOUTS_FILE)
-
     if not saved or saved == "" then
-        return {
-            version = 1,
-            layouts = {}
-        }
+        return { version = 1, layouts = {} }
     end
 
-    -- Use our custom JSON decoder
-    local success, data = pcall(decodeLayoutsJSON, saved)
-
-    if success and data and type(data) == "table" then
-        local layoutCount = data.layouts and #data.layouts or 0
-        bolt.saveconfig("layout_load_debug.txt", string.format(
-            "loadLayouts: successfully parsed %d layouts", layoutCount
-        ))
-        return data
-    else
-        bolt.saveconfig("layout_load_debug.txt", string.format(
-            "loadLayouts: parse failed. success=%s type=%s",
-            tostring(success), type(data)
-        ))
-        return {
-            version = 1,
-            layouts = {}
-        }
+    if bolt.json and bolt.json.decode then
+        local ok, data = pcall(bolt.json.decode, saved)
+        if ok and type(data) == "table" then
+            local normalized = {}
+            if type(data.layouts) == "table" then
+                for index, layout in ipairs(data.layouts) do
+                    local entry = normalizeLayoutEntry(layout, index)
+                    if entry then
+                        table.insert(normalized, entry)
+                    end
+                end
+            end
+            data.layouts = normalized
+            return data
+        end
     end
+
+    local decoded = simplejson.decode(saved)
+    if decoded and type(decoded) == "table" then
+        local normalized = {}
+        if type(decoded.layouts) == "table" then
+            for index, layout in ipairs(decoded.layouts) do
+                local entry = normalizeLayoutEntry(layout, index)
+                if entry then
+                    table.insert(normalized, entry)
+                end
+            end
+        end
+        decoded.layouts = normalized
+        return decoded
+    end
+
+    local success, fallback = pcall(decodeLayoutsJSON, saved)
+    if success and type(fallback) == "table" then
+        local normalized = {}
+        if type(fallback.layouts) == "table" then
+            for index, layout in ipairs(fallback.layouts) do
+                local entry = normalizeLayoutEntry(layout, index)
+                if entry then
+                    table.insert(normalized, entry)
+                end
+            end
+        end
+        fallback.layouts = normalized
+        return fallback
+    end
+
+    return { version = 1, layouts = {} }
 end
 
 -- Save all layouts
 function M.saveLayouts(bolt, layoutsData)
-    -- Always use manual JSON encoding (bolt.json APIs don't exist)
-    local jsonLines = {'{'}
-    table.insert(jsonLines, '  "version": ' .. (layoutsData.version or 1) .. ',')
-    table.insert(jsonLines, '  "layouts": [')
+    layoutsData.version = layoutsData.version or 1
+    layoutsData.layouts = layoutsData.layouts or {}
 
-    local layouts = layoutsData.layouts or {}
-    for i, layout in ipairs(layouts) do
-        local comma = i < #layouts and ',' or ''
-        table.insert(jsonLines, '    {')
-        table.insert(jsonLines, '      "id": "' .. (layout.id or '') .. '",')
-        table.insert(jsonLines, '      "name": "' .. (layout.name or '') .. '",')
-        table.insert(jsonLines, '      "created": ' .. (layout.created or 0) .. ',')
-        table.insert(jsonLines, '      "tiles": [')
-
-        local tiles = layout.tiles or {}
-        for j, tile in ipairs(tiles) do
-            local tileComma = j < #tiles and ',' or ''
-            table.insert(jsonLines, string.format(
-                '        {"localX": %d, "localZ": %d, "worldY": %.0f, "colorIndex": %d}%s',
-                tile.localX, tile.localZ, tile.worldY, tile.colorIndex, tileComma
+    if bolt.json and bolt.json.encode then
+        local ok, encoded = pcall(bolt.json.encode, layoutsData)
+        if ok and encoded then
+            bolt.saveconfig(LAYOUTS_FILE, encoded)
+            bolt.saveconfig("layout_save_debug.txt", string.format(
+                "Saved %d layouts to file (bolt.json)", #layoutsData.layouts
             ))
+            return true
         end
-
-        table.insert(jsonLines, '      ]')
-        table.insert(jsonLines, '    }' .. comma)
     end
 
-    table.insert(jsonLines, '  ]')
-    table.insert(jsonLines, '}')
+    local encoded = simplejson.encode(layoutsData)
+    if encoded then
+        bolt.saveconfig(LAYOUTS_FILE, encoded)
+        bolt.saveconfig("layout_save_debug.txt", string.format(
+            "Saved %d layouts to file (simplejson)", #layoutsData.layouts
+        ))
+        return true
+    end
 
-    local jsonString = table.concat(jsonLines, '\n')
-    bolt.saveconfig(LAYOUTS_FILE, jsonString)
-
-    bolt.saveconfig("layout_save_debug.txt", string.format(
-        "Saved %d layouts to file", #layouts
-    ))
-
-    return true
+    return false
 end
 
 -- Create a new layout from current instance tiles
 function M.createLayout(bolt, name, instanceTiles)
     local layoutsData = M.loadLayouts(bolt)
 
-    -- Generate unique ID using layout count and random number
     local id = "layout_" .. (#layoutsData.layouts + 1) .. "_" .. math.random(1000, 9999)
 
-    -- Extract tile data (only store local coordinates, worldY, and color)
     local tiles = {}
     for _, tile in pairs(instanceTiles) do
-        table.insert(tiles, {
-            localX = tile.localX,
-            localZ = tile.localZ,
-            worldY = tile.y,
-            colorIndex = tile.colorIndex or 1
-        })
+        local normalized = normalizeTile(tile)
+        if normalized then
+            normalized.worldY = tile.y or normalized.worldY
+            table.insert(tiles, normalized)
+        end
     end
 
-    -- Create layout object (without timestamp since os.time isn't available)
     local layout = {
         id = id,
-        name = name,
-        created = #layoutsData.layouts + 1,  -- Use layout count as a simple timestamp
+        name = sanitizeStoredName(name, id),
+        displayName = sanitizeDisplayName(name, id) or sanitizeStoredName(name, id),
+        created = #layoutsData.layouts + 1,
         tiles = tiles
     }
 
+    layout = normalizeLayoutEntry(layout, #layoutsData.layouts + 1)
     table.insert(layoutsData.layouts, layout)
     M.saveLayouts(bolt, layoutsData)
 
     bolt.saveconfig("instance_debug.txt", string.format(
-        "Created layout '%s' with %d tiles", name, #tiles
+        "Created layout '%s' with %d tiles", layout.displayName or layout.name, #tiles
     ))
 
     return id
@@ -188,7 +251,7 @@ function M.deleteLayout(bolt, layoutId)
             M.saveLayouts(bolt, layoutsData)
 
             bolt.saveconfig("instance_debug.txt", string.format(
-                "Deleted layout '%s'", layout.name or layoutId
+                "Deleted layout '%s'", layout.displayName or layout.name or layoutId
             ))
 
             return true
@@ -229,13 +292,65 @@ function M.renameLayout(bolt, layoutId, newName)
 
     for _, layout in ipairs(layoutsData.layouts) do
         if layout.id == layoutId then
-            layout.name = newName
+            layout.name = sanitizeStoredName(newName, layout.name)
+            layout.displayName = sanitizeDisplayName(newName, layout.displayName) or layout.name
             M.saveLayouts(bolt, layoutsData)
             return true
         end
     end
 
     return false
+end
+
+local function convertImportedTiles(tileList)
+    local normalized = {}
+    if type(tileList) ~= "table" then
+        return normalized
+    end
+
+    for _, tile in ipairs(tileList) do
+        local prepared = normalizeTile(tile)
+        if prepared then
+            prepared.worldY = tonumber(tile.worldY) or prepared.worldY
+            table.insert(normalized, prepared)
+        end
+    end
+
+    return normalized
+end
+
+function M.importLayoutFromData(bolt, layoutData)
+    if type(layoutData) ~= "table" then
+        return false, "Invalid layout data."
+    end
+
+    local layoutsData = M.loadLayouts(bolt)
+    local tiles = convertImportedTiles(layoutData.tiles or {})
+    if #tiles == 0 then
+        return false, "No valid tiles found."
+    end
+
+    local id = "import_" .. (#layoutsData.layouts + 1) .. "_" .. math.random(1000, 9999)
+    local displayName = sanitizeDisplayName(layoutData.displayName, layoutData.name) or ("Imported Layout " .. tostring(#layoutsData.layouts + 1))
+    local storageName = sanitizeStoredName(layoutData.name, displayName)
+
+    local layout = {
+        id = id,
+        name = storageName,
+        displayName = displayName,
+        created = #layoutsData.layouts + 1,
+        tiles = tiles
+    }
+
+    layout = normalizeLayoutEntry(layout, #layoutsData.layouts + 1)
+    table.insert(layoutsData.layouts, layout)
+    local saved = M.saveLayouts(bolt, layoutsData)
+
+    if not saved then
+        return false, "Failed to save imported layout."
+    end
+
+    return true, layout
 end
 
 return M

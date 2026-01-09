@@ -27,6 +27,14 @@
         palette: document.getElementById('view-palette')
     };
     let activeView = 'layouts';
+    const notificationStack = document.getElementById('notification-stack');
+    const modalOverlay = document.getElementById('modal-overlay');
+    const modalTitle = document.getElementById('modal-title');
+    const modalMessage = document.getElementById('modal-message');
+    const modalTextarea = document.getElementById('modal-textarea');
+    const modalPrimaryButton = document.getElementById('modal-primary-button');
+    const modalSecondaryButton = document.getElementById('modal-secondary-button');
+    let modalState = null;
 
     window.addEventListener('message', (event) => {
         let data = event.data;
@@ -66,6 +74,127 @@
         } else if (parsedData.type === 'layouts_update') {
             currentState.layouts = parsedData.layouts || [];
             updateUI();
+        } else if (parsedData.type === 'import_result') {
+            handleImportResult(parsedData);
+        }
+    });
+
+    function showNotification(message, type = 'info', duration = 3200) {
+        const fallback = () => console.log(`${type.toUpperCase()}: ${message}`);
+        if (!notificationStack) {
+            fallback();
+            return;
+        }
+        const note = document.createElement('div');
+        const classes = ['notification'];
+        if (type && type !== 'info') {
+            classes.push(type);
+        }
+        note.className = classes.join(' ');
+        note.textContent = message;
+        notificationStack.appendChild(note);
+        const visibleTime = Math.max(600, duration);
+        setTimeout(() => {
+            note.style.opacity = '0';
+            note.style.transform = 'translateY(-6px)';
+        }, visibleTime - 300);
+        setTimeout(() => {
+            if (note.parentNode) {
+                note.parentNode.removeChild(note);
+            }
+        }, visibleTime);
+    }
+
+    function openModal(config) {
+        if (!modalOverlay || !modalTitle || !modalMessage || !modalPrimaryButton || !modalSecondaryButton) {
+            return;
+        }
+
+        modalState = config || {};
+
+        modalTitle.textContent = modalState.title || '';
+        modalMessage.textContent = modalState.message || '';
+
+        if (modalTextarea) {
+            if (modalState.showTextarea) {
+                modalTextarea.classList.remove('hidden');
+                modalTextarea.value = modalState.textareaValue || '';
+                modalTextarea.placeholder = modalState.textareaPlaceholder || '';
+                modalTextarea.readOnly = !!modalState.textareaReadonly;
+            } else {
+                modalTextarea.classList.add('hidden');
+                modalTextarea.value = '';
+                modalTextarea.placeholder = '';
+            }
+        }
+
+        modalPrimaryButton.textContent = modalState.primaryLabel || 'Confirm';
+        modalPrimaryButton.classList.toggle('danger', modalState.primaryStyle === 'danger');
+
+        if (modalState.hideSecondary) {
+            modalSecondaryButton.classList.add('hidden');
+        } else {
+            modalSecondaryButton.classList.remove('hidden');
+            modalSecondaryButton.textContent = modalState.secondaryLabel || 'Cancel';
+        }
+
+        modalOverlay.classList.remove('hidden');
+
+        const focusTarget = modalState.showTextarea && modalTextarea
+            ? modalTextarea
+            : modalPrimaryButton;
+        setTimeout(() => {
+            if (focusTarget) {
+                focusTarget.focus();
+                if (modalState.focusEnd && focusTarget.select) {
+                    focusTarget.select();
+                }
+            }
+        }, 30);
+    }
+
+    function closeModal() {
+        if (!modalOverlay) {
+            return;
+        }
+        modalOverlay.classList.add('hidden');
+        modalState = null;
+        if (modalTextarea) {
+            modalTextarea.value = '';
+            modalTextarea.placeholder = '';
+        }
+    }
+
+    if (modalPrimaryButton) {
+        modalPrimaryButton.addEventListener('click', () => {
+            if (modalState && typeof modalState.onPrimary === 'function') {
+                modalState.onPrimary();
+            } else {
+                closeModal();
+            }
+        });
+    }
+
+    if (modalSecondaryButton) {
+        modalSecondaryButton.addEventListener('click', () => {
+            if (modalState && typeof modalState.onSecondary === 'function') {
+                modalState.onSecondary();
+            }
+            closeModal();
+        });
+    }
+
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', (event) => {
+            if (event.target === modalOverlay) {
+                closeModal();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && modalState) {
+            closeModal();
         }
     });
 
@@ -77,7 +206,9 @@
         document.getElementById('temp-tiles').textContent = currentState.tempTileCount || 0;
 
         const activeLayout = currentState.layouts.find((l) => l.id === currentState.activeLayoutId);
-        document.getElementById('active-layout').textContent = activeLayout ? activeLayout.name : 'None';
+        document.getElementById('active-layout').textContent = activeLayout
+            ? (activeLayout.displayName || activeLayout.name || 'Layout')
+            : 'None';
 
         const saveButton = document.getElementById('save-button');
         if (saveButton && layoutNameInput) {
@@ -117,11 +248,13 @@
         listContainer.innerHTML = currentState.layouts.map((layout) => {
             const isActive = layout.id === currentState.activeLayoutId;
             const tileCount = layout.tiles ? layout.tiles.length : 0;
+            const displayName = layout.displayName || layout.name || 'Layout';
+            const safeDisplayName = escapeHtml(displayName);
 
             return `
                 <div class="layout-item ${isActive ? 'active' : ''}" data-id="${layout.id}">
                     <div class="layout-header">
-                        <div class="layout-name">${escapeHtml(layout.name)}</div>
+                        <div class="layout-name">${safeDisplayName}</div>
                     </div>
                     <div class="layout-info">
                         ${tileCount} tile${tileCount !== 1 ? 's' : ''}
@@ -132,7 +265,8 @@
                             <span class="toggle-track"></span>
                             <span class="toggle-label">${isActive ? 'Active' : 'Inactive'}</span>
                         </label>
-                        <button class="danger" onclick="deleteLayout('${layout.id}', '${escapeHtml(layout.name)}')">Delete</button>
+                        <button class="secondary" onclick="exportLayout('${layout.id}')">Export</button>
+                        <button class="danger" onclick="requestDeleteLayout('${layout.id}')">Delete</button>
                     </div>
                 </div>
             `;
@@ -257,13 +391,13 @@
         const nameInput = row.querySelector('.palette-name-input');
         const colorInput = row.querySelector('.palette-color-input');
         if (!colorInput || !colorInput.value) {
-            alert('Please pick a color.');
+            showNotification('Pick a color before saving.', 'warning');
             return;
         }
 
         const hex = colorInput.value.trim();
         if (!/^#[0-9a-fA-F]{6}$/.test(hex)) {
-            alert('Please provide a valid hex color.');
+            showNotification('Provide a valid hex color (e.g., #00d4ff).', 'error');
             return;
         }
 
@@ -273,6 +407,8 @@
             name: nameInput ? nameInput.value.trim() : '',
             color: hex
         });
+
+        showNotification('Palette color updated.', 'success');
     }
 
     function updateChunkGrid() {
@@ -448,22 +584,23 @@
     function saveLayout() {
         const name = layoutNameInput ? layoutNameInput.value.trim() : '';
         if (!name) {
-            alert('Please enter a layout name');
+            showNotification('Enter a layout name first.', 'warning');
             return;
         }
 
         if (!currentState.inInstance) {
-            alert('You must be in an instance to save a layout');
+            showNotification('Enter an instance before saving layouts.', 'warning');
             return;
         }
 
         if (currentState.tempTileCount === 0) {
-            alert('No tiles to save. Mark some tiles first.');
+            showNotification('Mark some tiles before saving.', 'warning');
             return;
         }
 
         sendToLua({ action: 'save_layout', name });
         layoutNameInput.value = '';
+        showNotification(`Saving layout "${name}"...`, 'info');
     }
 
     function activateLayout(layoutId) {
@@ -492,21 +629,171 @@
         return true;
     }
 
-    function deleteLayout(layoutId, layoutName) {
-        if (confirm(`Delete layout "${layoutName}"?`)) {
-            sendToLua({
-                action: 'delete_layout',
-                layoutId
-            });
-        }
-    }
-
     function toggleLayout(layoutId, checkboxEl) {
         if (checkboxEl.checked) {
             activateLayout(layoutId);
         } else if (currentState.activeLayoutId === layoutId) {
             deactivateLayout();
         }
+    }
+
+    function requestDeleteLayout(layoutId) {
+        const target = currentState.layouts.find((layout) => layout.id === layoutId);
+        const nameLabel = target ? (target.displayName || target.name || 'this layout') : 'this layout';
+        openModal({
+            title: 'Delete Layout',
+            message: `Delete "${nameLabel}"? This cannot be undone.`,
+            primaryLabel: 'Delete',
+            primaryStyle: 'danger',
+            secondaryLabel: 'Cancel',
+            onPrimary: () => {
+                closeModal();
+                sendToLua({
+                    action: 'delete_layout',
+                    layoutId
+                });
+                showNotification(`Deleting "${nameLabel}"...`, 'warning');
+            }
+        });
+    }
+
+    function normalizeImportedTiles(rawTiles) {
+        if (!Array.isArray(rawTiles)) {
+            return [];
+        }
+
+        return rawTiles
+            .map((tile) => ({
+                localX: Number(tile.localX),
+                localZ: Number(tile.localZ),
+                worldY: Number(tile.worldY),
+                colorIndex: Number(tile.colorIndex)
+            }))
+            .filter((tile) => Number.isFinite(tile.localX) && Number.isFinite(tile.localZ))
+            .map((tile) => ({
+                localX: Math.max(0, Math.min(63, Math.floor(tile.localX))),
+                localZ: Math.max(0, Math.min(63, Math.floor(tile.localZ))),
+                worldY: Number.isFinite(tile.worldY) ? tile.worldY : 0,
+                colorIndex: Number.isFinite(tile.colorIndex) ? Math.max(1, Math.floor(tile.colorIndex)) : 1
+            }));
+    }
+
+    function openImportModal() {
+        openModal({
+            title: 'Import Layout',
+            message: 'Paste layout JSON below to add it to your list.',
+            showTextarea: true,
+            textareaValue: '',
+            textareaPlaceholder: '{ "version": 1, "name": "Example", "tiles": [...] }',
+            textareaReadonly: false,
+            primaryLabel: 'Import',
+            secondaryLabel: 'Cancel',
+            onPrimary: () => {
+                if (!modalTextarea) {
+                    return;
+                }
+                const input = modalTextarea.value.trim();
+                if (!input) {
+                    showNotification('Paste layout JSON first.', 'warning');
+                    return;
+                }
+
+                let parsed;
+                try {
+                    parsed = JSON.parse(input);
+                } catch (error) {
+                    showNotification('Invalid layout JSON.', 'error');
+                    return;
+                }
+
+                const tiles = normalizeImportedTiles(parsed.tiles);
+                if (tiles.length === 0) {
+                    showNotification('No valid tiles were found in that layout.', 'error');
+                    return;
+                }
+
+                closeModal();
+
+                sendToLua({
+                    action: 'import_layout',
+                    layout: {
+                        name: typeof parsed.name === 'string' ? parsed.name : '',
+                        displayName: typeof parsed.displayName === 'string'
+                            ? parsed.displayName
+                            : (typeof parsed.prettyName === 'string' ? parsed.prettyName : ''),
+                        tiles
+                    }
+                });
+
+                showNotification('Importing layout...', 'info');
+            }
+        });
+    }
+
+    function openExportModal(jsonString) {
+        openModal({
+            title: 'Export Layout',
+            message: 'Copy the JSON below to share this layout.',
+            showTextarea: true,
+            textareaValue: jsonString,
+            textareaReadonly: true,
+            focusEnd: true,
+            primaryLabel: 'Copy JSON',
+            secondaryLabel: 'Close',
+            onPrimary: () => {
+                if (!modalTextarea) {
+                    return;
+                }
+                modalTextarea.focus();
+                modalTextarea.select();
+                try {
+                    const copied = document.execCommand('copy');
+                    if (copied) {
+                        showNotification('Copied JSON to clipboard.', 'success');
+                        closeModal();
+                        return;
+                    }
+                } catch (error) {
+                    // Ignore
+                }
+                showNotification('Press Ctrl+C / Cmd+C to copy.', 'warning');
+            }
+        });
+    }
+
+    async function exportLayout(layoutId) {
+        const layout = currentState.layouts.find((entry) => entry.id === layoutId);
+        if (!layout) {
+            showNotification('Layout not found.', 'error');
+            return;
+        }
+
+        const exportPayload = {
+            version: 1,
+            name: layout.name || '',
+            displayName: layout.displayName || layout.name || '',
+            tiles: Array.isArray(layout.tiles) ? layout.tiles : []
+        };
+
+        const jsonString = JSON.stringify(exportPayload);
+        const label = exportPayload.displayName || exportPayload.name || 'Layout';
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(jsonString);
+                showNotification(`Copied "${label}" to your clipboard.`, 'success');
+                return;
+            }
+            throw new Error('Clipboard API unavailable');
+        } catch (error) {
+            openExportModal(jsonString);
+        }
+    }
+
+    function handleImportResult(payload) {
+        const type = payload.success ? 'success' : 'error';
+        const message = payload.message || (payload.success ? 'Layout imported.' : 'Failed to import layout.');
+        showNotification(message, type);
     }
 
     function switchView(targetView) {
@@ -583,8 +870,11 @@
     }
 
     window.saveLayout = saveLayout;
-    window.deleteLayout = deleteLayout;
     window.toggleLayout = toggleLayout;
+    window.exportLayout = exportLayout;
+    window.requestDeleteLayout = requestDeleteLayout;
+    window.openImportModal = openImportModal;
+    window.closeModal = closeModal;
     window.closeWindow = closeWindow;
 
     sendToLua({ action: 'ready' });

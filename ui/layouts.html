@@ -47,7 +47,10 @@
             </div>
 
             <div class="section">
-                <div class="section-title">Saved Layouts</div>
+                <div class="section-header">
+                    <div class="section-title">Saved Layouts</div>
+                    <button class="secondary" onclick="openImportModal()">Import Layout</button>
+                </div>
                 <div class="layout-list" id="layout-list">
                     <div class="empty-state">
                         <div class="empty-state-icon">📍</div>
@@ -88,6 +91,25 @@
                 <div class="palette-editor" id="palette-editor">
                     <p class="palette-empty">Loading palette…</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="notification-stack" id="notification-stack"></div>
+
+    <div class="modal hidden" id="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-title"></h3>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <p id="modal-message"></p>
+                <textarea id="modal-textarea" class="hidden"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary" id="modal-secondary-button">Cancel</button>
+                <button id="modal-primary-button">Confirm</button>
             </div>
         </div>
     </div>

@@ -2,6 +2,7 @@
 local M = {}
 
 local colors = require("core.colors")
+local json = require("core.simplejson")
 
 local browser = nil
 local isOpen = false
@@ -10,83 +11,25 @@ local updateInterval = 60  -- Update GUI every 60 frames
 local cachedState = nil
 local cachedBolt = nil
 
+local function sendBrowserPayload(payload)
+    if not browser or not isOpen then
+        return
+    end
+    local encoded = json.encode(payload)
+    if encoded then
+        browser:sendmessage(encoded)
+    end
+end
+
+local function sendImportResult(success, message)
+    sendBrowserPayload({
+        type = "import_result",
+        success = success,
+        message = message or ""
+    })
+end
+
 -- Simple JSON decoder (basic, for our needs)
-local function decodeJSON(str)
-    if not str or str == "" then return nil end
-
-    -- Try using a simple pattern-based approach for our simple messages
-    -- Our messages are simple: {"action":"...", "name":"...", "layoutId":"..."}
-
-    local result = {}
-
-    -- Extract key-value pairs from JSON string
-    for key, value in str:gmatch('"([^"]+)"%s*:%s*"([^"]*)"') do
-        result[key] = value
-    end
-
-    -- Match numeric values (supporting negatives and decimals)
-    for key, value in str:gmatch('"([^"]+)"%s*:%s*(-?%d+%.?%d*)') do
-        result[key] = tonumber(value)
-    end
-
-    -- Also try to match boolean and null values
-    for key, value in str:gmatch('"([^"]+)"%s*:%s*(true|false|null)') do
-        if value == "true" then
-            result[key] = true
-        elseif value == "false" then
-            result[key] = false
-        elseif value == "null" then
-            result[key] = nil
-        end
-    end
-
-    -- Return nil if we didn't parse anything
-    if next(result) == nil then
-        return nil
-    end
-
-    return result
-end
-
--- Simple JSON encoder (basic, for our needs)
-local function encodeJSON(tbl)
-    if type(tbl) ~= "table" then
-        if type(tbl) == "string" then
-            return '"' .. tbl:gsub('"', '\\"') .. '"'
-        elseif type(tbl) == "number" or type(tbl) == "boolean" then
-            return tostring(tbl)
-        elseif tbl == nil then
-            return "null"
-        end
-    end
-
-    -- Check if it's an array
-    local isArray = true
-    local maxIndex = 0
-    for k, v in pairs(tbl) do
-        if type(k) ~= "number" or k < 1 or k ~= math.floor(k) then
-            isArray = false
-            break
-        end
-        maxIndex = math.max(maxIndex, k)
-    end
-
-    if isArray then
-        local parts = {}
-        for i = 1, maxIndex do
-            table.insert(parts, encodeJSON(tbl[i]))
-        end
-        return "[" .. table.concat(parts, ",") .. "]"
-    else
-        local parts = {}
-        for k, v in pairs(tbl) do
-            local key = type(k) == "string" and ('"' .. k .. '"') or tostring(k)
-            table.insert(parts, key .. ":" .. encodeJSON(v))
-        end
-        return "{" .. table.concat(parts, ",") .. "}"
-    end
-end
-
 -- Initialize the GUI bridge
 function M.init()
     browser = nil
@@ -115,8 +58,7 @@ function M.open(bolt, state)
     browser:onmessage(function(msg)
         bolt.saveconfig("browser_incoming_debug.txt", string.format("Received from browser: %s", msg))
 
-        -- Parse JSON message using our simple decoder
-        local data = decodeJSON(msg)
+        local data = json.decode(msg)
 
         if data then
             M.handleBrowserMessage(cachedBolt, cachedState, data)
@@ -193,13 +135,15 @@ function M.sendStateUpdate(state, bolt)
         currentColorIndex = currentColorIndex
     }
 
-    local json = encodeJSON(message)
-    browser:sendmessage(json)
+    local encoded = json.encode(message)
+    if encoded then
+        browser:sendmessage(encoded)
+    end
 
     -- Debug log
     bolt.saveconfig("gui_debug.txt", string.format(
         "Sent state update: inInstance=%s tempTiles=%d json=%s",
-        tostring(managerState.inInstance), managerState.tempTileCount, json
+        tostring(managerState.inInstance), managerState.tempTileCount, encoded or "nil"
     ))
 end
 
@@ -226,13 +170,15 @@ function M.sendLayoutsUpdate(bolt)
         layouts = layouts
     }
 
-    local json = encodeJSON(message)
-    browser:sendmessage(json)
+    local encoded = json.encode(message)
+    if encoded then
+        browser:sendmessage(encoded)
+    end
 
     -- Debug log with actual JSON
     bolt.saveconfig("gui_debug.txt", string.format(
         "Sent layouts update: %d layouts, json=%s",
-        #layouts, json:sub(1, 200)  -- First 200 chars
+        #layouts, encoded and encoded:sub(1, 200) or "nil"
     ))
 end
 
@@ -336,6 +282,31 @@ function M.handleBrowserMessage(bolt, state, data)
         bolt.saveconfig("instance_debug.txt", string.format(
             "Deleted layout %s", data.layoutId
         ))
+
+    elseif data.action == "import_layout" then
+        local layoutData = data.layout
+        if type(layoutData) ~= "table" then
+            sendImportResult(false, "Import failed: invalid payload.")
+            return
+        end
+
+        local success, result = layoutPersist.importLayoutFromData(bolt, layoutData)
+        if success then
+            M.sendFullUpdate(bolt, state)
+            local name = result and (result.displayName or result.name) or "Imported Layout"
+            sendImportResult(true, string.format('Imported layout "%s".', name))
+            bolt.saveconfig("instance_debug.txt", string.format(
+                "Imported layout %s with %d tiles",
+                tostring(name),
+                result and #result.tiles or 0
+            ))
+        else
+            sendImportResult(false, result or "Import failed.")
+            bolt.saveconfig("instance_debug.txt", string.format(
+                "Import layout failed: %s",
+                tostring(result or "unknown error")
+            ))
+        end
 
     elseif data.action == "toggle_chunk_tile" then
         local localX = tonumber(data.localX)
