@@ -158,35 +158,18 @@ button.secondary:hover {
     background: rgba(0, 212, 255, 0.15);
     border-color: #00d4ff;
 }
-.layout-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-}
-.layout-name {
-    font-weight: 600;
-    font-size: 15px;
-    color: #fff;
-}
-.layout-item.active .layout-name {
-    color: #00d4ff;
-}
-.layout-info {
-    font-size: 12px;
-    color: #888;
-    margin-bottom: 8px;
-}
-.layout-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-.layout-actions button {
-    padding: 6px 12px;
-    font-size: 12px;
-}
+.layout-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
+.layout-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.layout-name { font-weight: 600; font-size: 15px; color: #fff; }
+.layout-item.active .layout-name { color: #00d4ff; }
+.layout-info { font-size: 12px; color: #888; }
+.layout-controls { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.layout-controls .toggle-switch { margin-right: 4px; }
+.icon-button { width: 34px; height: 34px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; padding: 0; transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease; }
+.icon-button:hover { border-color: rgba(0,212,255,0.5); background: rgba(0,212,255,0.1); transform: translateY(-1px); }
+.icon-button img { width: 16px; height: 16px; pointer-events: none; filter: brightness(0) invert(1); }
+.icon-button.danger { border-color: rgba(255,68,68,0.4); }
+.icon-button.danger:hover { border-color: rgba(255,68,68,0.8); background: rgba(255,68,68,0.12); }
 .view-toggle {
     display: flex;
     gap: 8px;

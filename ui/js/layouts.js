@@ -254,19 +254,24 @@
             return `
                 <div class="layout-item ${isActive ? 'active' : ''}" data-id="${layout.id}">
                     <div class="layout-header">
-                        <div class="layout-name">${safeDisplayName}</div>
-                    </div>
-                    <div class="layout-info">
-                        ${tileCount} tile${tileCount !== 1 ? 's' : ''}
-                    </div>
-                    <div class="layout-actions">
-                        <label class="toggle-switch">
-                            <input type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleLayout('${layout.id}', this)">
-                            <span class="toggle-track"></span>
-                            <span class="toggle-label">${isActive ? 'Active' : 'Inactive'}</span>
-                        </label>
-                        <button class="secondary" onclick="exportLayout('${layout.id}')">Export</button>
-                        <button class="danger" onclick="requestDeleteLayout('${layout.id}')">Delete</button>
+                        <div class="layout-meta">
+                            <div class="layout-name">${safeDisplayName}</div>
+                            <div class="layout-info">
+                                ${tileCount} tile${tileCount !== 1 ? 's' : ''}
+                            </div>
+                        </div>
+                        <div class="layout-controls">
+                            <label class="toggle-switch">
+                                <input type="checkbox" ${isActive ? 'checked' : ''} onchange="toggleLayout('${layout.id}', this)">
+                                <span class="toggle-track"></span>
+                            </label>
+                            <button type="button" class="icon-button" title="Copy layout JSON" aria-label="Copy layout JSON" onclick="exportLayout('${layout.id}')">
+                                <img src="svg/copy.svg" alt="">
+                            </button>
+                            <button type="button" class="icon-button danger" title="Delete layout" aria-label="Delete layout" onclick="requestDeleteLayout('${layout.id}')">
+                                <img src="svg/delete.svg" alt="">
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
