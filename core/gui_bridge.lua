@@ -141,11 +141,46 @@ function M.sendStateUpdate(state, bolt)
     local instanceManager = require("core.instance_manager")
     local managerState = instanceManager.getState()
 
+    local chunkSnapshot = instanceManager.getChunkSnapshot()
+    local chunkGrid = {
+        enabled = chunkSnapshot ~= nil,
+        size = 64,
+        mode = managerState.inInstance and "instance" or "world",
+    }
+
+    if chunkSnapshot then
+        chunkGrid.chunkX = chunkSnapshot.chunkX
+        chunkGrid.chunkZ = chunkSnapshot.chunkZ
+        chunkGrid.playerLocalX = chunkSnapshot.localX
+        chunkGrid.playerLocalZ = chunkSnapshot.localZ
+        chunkGrid.floor = chunkSnapshot.floor
+
+        local gridTiles = {}
+        if managerState.inInstance then
+            local tempTiles = instanceManager.getInstanceTiles()
+            for _, tile in pairs(tempTiles) do
+                table.insert(gridTiles, { localX = tile.localX, localZ = tile.localZ })
+            end
+        else
+            local markedTiles = state.getMarkedTiles()
+            for _, tile in pairs(markedTiles) do
+                if tile.chunkX == chunkSnapshot.chunkX and tile.chunkZ == chunkSnapshot.chunkZ then
+                    table.insert(gridTiles, { localX = tile.localX, localZ = tile.localZ })
+                end
+            end
+        end
+
+        chunkGrid.marked = gridTiles
+    else
+        chunkGrid.marked = {}
+    end
+
     local message = {
         type = "state_update",
         inInstance = managerState.inInstance,
         tempTileCount = managerState.tempTileCount,
-        activeLayoutId = managerState.currentLayoutId
+        activeLayoutId = managerState.currentLayoutId,
+        chunkGrid = chunkGrid
     }
 
     local json = encodeJSON(message)
@@ -283,6 +318,49 @@ function M.handleBrowserMessage(bolt, state, data)
         bolt.saveconfig("instance_debug.txt", string.format(
             "Deleted layout %s", data.layoutId
         ))
+
+    elseif data.action == "toggle_chunk_tile" then
+        local localX = tonumber(data.localX)
+        local localZ = tonumber(data.localZ)
+        if localX and localZ then
+            local scope = data.scope or (instanceManager.isInInstance() and "instance" or "world")
+            if scope == "instance" then
+                local colorIndex = state.getCurrentColorIndex and state.getCurrentColorIndex() or 1
+                if instanceManager.toggleTileAtLocal(localX, localZ, colorIndex, bolt) then
+                    M.sendStateUpdate(state, bolt)
+                end
+            else
+                local chunkInfo = instanceManager.getChunkSnapshot()
+                if chunkInfo then
+                    local tiles = require("core.tiles")
+                    local currentColor = state.getCurrentColorIndex and state.getCurrentColorIndex() or 1
+                    if tiles.toggleWorldTileAtChunkLocal(
+                        state,
+                        bolt,
+                        chunkInfo.chunkX,
+                        chunkInfo.chunkZ,
+                        localX,
+                        localZ,
+                        chunkInfo.floor,
+                        chunkInfo.worldY,
+                        currentColor
+                    ) then
+                        M.sendStateUpdate(state, bolt)
+                    end
+                end
+            end
+        end
+
+    elseif data.action == "hover_chunk_tile" then
+        if data.clear then
+            instanceManager.clearHoverTile()
+        else
+            local localX = tonumber(data.localX)
+            local localZ = tonumber(data.localZ)
+            if localX and localZ then
+                instanceManager.setHoverTile(localX, localZ)
+            end
+        end
     end
 end
 

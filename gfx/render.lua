@@ -198,27 +198,47 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
       for _, t in pairs(tempTiles) do
         table.insert(tilesToRender, t)
       end
+
+    end
+
+    local hoverTile = instanceManager.getHoverTile()
+    if hoverTile then
+      table.insert(tilesToRender, hoverTile)
     end
 
     if #tilesToRender == 0 then return end
 
-    -- Group by color and render
-    local byColor = {}
+    -- Group by color and render (supporting preview tiles)
+    local groups = {}
     for _, t in ipairs(tilesToRender) do
-      local idx = t.colorIndex or 1
-      byColor[idx] = byColor[idx] or {}
-      table.insert(byColor[idx], t)
+      local key
+      local rgbOverride = nil
+
+      if t.previewColor then
+        key = string.format("preview:%d,%d,%d", t.previewColor[1] or 0, t.previewColor[2] or 0, t.previewColor[3] or 0)
+        rgbOverride = t.previewColor
+      else
+        key = tostring(t.colorIndex or 1)
+      end
+
+      if not groups[key] then
+        groups[key] = {
+          tiles = {},
+          rgb = rgbOverride or colors.get(t.colorIndex or 1)
+        }
+      end
+
+      table.insert(groups[key].tiles, t)
     end
 
-    for colorIndex, list in pairs(byColor) do
-      if #list > 0 then
-        local rgb = colors.get(colorIndex)
-        local coloredSurface = surfaces.createColoredSurface(bolt, rgb)
+    for _, group in pairs(groups) do
+      if #group.tiles > 0 then
+        local coloredSurface = surfaces.createColoredSurface(bolt, group.rgb)
         if not coloredSurface then goto continue_color end
 
-        local uniqueEdges = computeUniqueEdges(list, coords)
+        local uniqueEdges = computeUniqueEdges(group.tiles, coords)
 
-        local vHeights = buildVertexHeights(bolt, state, list, coords)
+        local vHeights = buildVertexHeights(bolt, state, group.tiles, coords)
         local S = coords.TILE_SIZE
 
         for _, e in pairs(uniqueEdges) do

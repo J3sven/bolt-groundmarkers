@@ -141,4 +141,64 @@ function M.recolorCurrentTile(state, bolt)
     return false
 end
 
+local function clampLocalCoord(value)
+    if type(value) ~= "number" then
+        return nil
+    end
+    value = math.floor(value + 0.5)
+    if value < 0 or value > 63 then
+        return nil
+    end
+    return value
+end
+
+function M.toggleWorldTileAtChunkLocal(state, bolt, chunkX, chunkZ, localX, localZ, floor, worldY, colorIndex)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+    if not chunkX or not chunkZ or not localX or not localZ then
+        return false
+    end
+
+    local coords = state.getCoords()
+    local tileX = chunkX * 64 + localX
+    local tileZ = chunkZ * 64 + localZ
+    local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+    local key = coords.tileKey(worldX, worldZ)
+
+    local marked = state.getMarkedTiles()
+    if marked[key] then
+        marked[key] = nil
+        persistence.saveMarkers(state, bolt)
+        if bolt then
+            bolt.saveconfig("marker_debug.txt", string.format(
+                "Removed world marker via grid at chunk (%d,%d) local (%d,%d)",
+                chunkX, chunkZ, localX, localZ))
+        end
+        return true
+    end
+
+    local markerData = {
+        x = worldX,
+        z = worldZ,
+        y = worldY or 0,
+        colorIndex = colorIndex or state.getCurrentColorIndex(),
+        chunkX = chunkX,
+        chunkZ = chunkZ,
+        localX = localX,
+        localZ = localZ,
+        floor = floor or 0
+    }
+
+    marked[key] = markerData
+    persistence.saveMarkers(state, bolt)
+
+    if bolt then
+        bolt.saveconfig("marker_debug.txt", string.format(
+            "Added world marker via grid at chunk (%d,%d) local (%d,%d)",
+            chunkX, chunkZ, localX, localZ))
+    end
+
+    return true
+end
+
 return M

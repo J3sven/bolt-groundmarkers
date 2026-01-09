@@ -6,6 +6,13 @@ local state = {
     inInstance = false,
     currentLayoutId = nil,  -- User-selected active layout
     instanceTiles = {},     -- Temporary tiles marked while in instance (before saving)
+    currentChunkX = nil,
+    currentChunkZ = nil,
+    playerLocalX = nil,
+    playerLocalZ = nil,
+    playerFloor = nil,
+    playerWorldY = 0,
+    hoverPreview = nil,
 }
 
 -- Check if player is in an instance based on chunk coordinates
@@ -29,10 +36,22 @@ function M.update(bolt)
     local px, py, pz = playerPos:get()
     local coords = require("core.coords")
     local tileX, tileZ = coords.worldToTileCoords(px, pz)
-    local _, chunkX, chunkZ = coords.tileToRS(tileX, tileZ, py)
+    local floor, chunkX, chunkZ, localX, localZ = coords.tileToRS(tileX, tileZ, py)
 
     local wasInInstance = state.inInstance
     state.inInstance = isInInstanceChunk(chunkX, chunkZ)
+
+    local chunkChanged = state.currentChunkX ~= chunkX or state.currentChunkZ ~= chunkZ
+    state.currentChunkX = chunkX
+    state.currentChunkZ = chunkZ
+    state.playerLocalX = localX
+    state.playerLocalZ = localZ
+    state.playerFloor = floor
+    state.playerWorldY = py
+
+    if chunkChanged then
+        state.hoverPreview = nil
+    end
 
     -- Debug logging
     bolt.saveconfig("instance_debug.txt", string.format(
@@ -43,6 +62,7 @@ function M.update(bolt)
     -- Entering instance
     if state.inInstance and not wasInInstance then
         state.instanceTiles = {}
+        state.hoverPreview = nil
         bolt.saveconfig("instance_debug.txt", string.format(
             "ENTERED instance at chunk (%d, %d)", chunkX, chunkZ
         ))
@@ -53,6 +73,7 @@ function M.update(bolt)
         -- Clear temporary tiles when leaving instance
         state.instanceTiles = {}
         state.currentLayoutId = nil
+        state.hoverPreview = nil
         bolt.saveconfig("instance_debug.txt", string.format(
             "LEFT instance at chunk (%d, %d)", chunkX, chunkZ
         ))
@@ -117,6 +138,126 @@ function M.getState()
         currentLayoutId = state.currentLayoutId,
         tempTileCount = M.getInstanceTileCount()
     }
+end
+
+function M.getChunkSnapshot()
+    if not state.currentChunkX or not state.currentChunkZ then
+        return nil
+    end
+
+    return {
+        chunkX = state.currentChunkX,
+        chunkZ = state.currentChunkZ,
+        localX = state.playerLocalX,
+        localZ = state.playerLocalZ,
+        floor = state.playerFloor or 0,
+        worldY = state.playerWorldY or 0
+    }
+end
+
+local function clampLocalCoord(value)
+    if type(value) ~= "number" then
+        return nil
+    end
+    value = math.floor(value + 0.5)
+    if value < 0 or value > 63 then
+        return nil
+    end
+    return value
+end
+
+function M.setHoverTile(localX, localZ)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+
+    if not localX or not localZ then
+        state.hoverPreview = nil
+        return false
+    end
+
+    if not state.currentChunkX or not state.currentChunkZ then
+        state.hoverPreview = nil
+        return false
+    end
+
+    local coords = require("core.coords")
+    local tileX = state.currentChunkX * 64 + localX
+    local tileZ = state.currentChunkZ * 64 + localZ
+    local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+
+    state.hoverPreview = {
+        x = worldX,
+        z = worldZ,
+        y = state.playerWorldY or 0,
+        chunkX = state.currentChunkX,
+        chunkZ = state.currentChunkZ,
+        localX = localX,
+        localZ = localZ,
+        floor = state.playerFloor or 0,
+        previewColor = {255, 255, 255}
+    }
+
+    return true
+end
+
+function M.clearHoverTile()
+    state.hoverPreview = nil
+end
+
+function M.getHoverTile()
+    return state.hoverPreview
+end
+
+function M.toggleTileAtLocal(localX, localZ, colorIndex, bolt)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+
+    if not localX or not localZ or not state.inInstance then
+        return false
+    end
+
+    if not state.currentChunkX or not state.currentChunkZ then
+        return false
+    end
+
+    local coords = require("core.coords")
+    local chunkX, chunkZ = state.currentChunkX, state.currentChunkZ
+    local tileX = chunkX * 64 + localX
+    local tileZ = chunkZ * 64 + localZ
+    local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+    local key = coords.tileKey(worldX, worldZ)
+
+    if state.instanceTiles[key] then
+        M.removeInstanceTile(key)
+        if bolt then
+            bolt.saveconfig("marker_debug.txt", string.format(
+                "Removed grid-marked tile at chunk (%d,%d) local (%d,%d)",
+                chunkX, chunkZ, localX, localZ))
+        end
+        return true
+    end
+
+    local tileData = {
+        x = worldX,
+        z = worldZ,
+        y = state.playerWorldY or 0,
+        colorIndex = colorIndex or 1,
+        chunkX = chunkX,
+        chunkZ = chunkZ,
+        localX = localX,
+        localZ = localZ,
+        floor = state.playerFloor or 0
+    }
+
+    M.addInstanceTile(tileData)
+
+    if bolt then
+        bolt.saveconfig("marker_debug.txt", string.format(
+            "Added grid-marked tile at chunk (%d,%d) local (%d,%d)",
+            chunkX, chunkZ, localX, localZ))
+    end
+
+    return true
 end
 
 return M

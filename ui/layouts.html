@@ -205,6 +205,117 @@
             font-size: 12px;
         }
 
+        .view-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .view-toggle button {
+            flex: 1;
+            padding: 10px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #bbb;
+        }
+
+        .view-toggle button.active {
+            background: linear-gradient(135deg, #00a8cc, #00d4ff);
+            color: #fff;
+            border-color: rgba(0, 212, 255, 0.6);
+        }
+
+        .view-panel {
+            display: none;
+        }
+
+        .view-panel.active {
+            display: block;
+        }
+
+        .chunk-grid-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chunk-grid-meta {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .chunk-grid {
+            display: grid;
+            grid-template-columns: repeat(64, minmax(0, 1fr));
+            gap: 1px;
+            width: 100%;
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 8px;
+            background: rgba(15, 15, 25, 0.9);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .chunk-grid .grid-cell {
+            aspect-ratio: 1 / 1;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 2px;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+
+        .chunk-grid .grid-cell.marked {
+            background: rgba(0, 212, 255, 0.6);
+        }
+
+        .chunk-grid .grid-cell.player {
+            background: rgba(255, 170, 0, 0.8);
+        }
+
+        .chunk-grid .grid-cell.hover {
+            outline: 1px solid #fff;
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .chunk-grid-disabled .chunk-grid {
+            opacity: 0.35;
+            pointer-events: none;
+        }
+
+        .chunk-grid-legend {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        .chunk-grid-legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        .legend-swatch.marked {
+            background: rgba(0, 212, 255, 0.8);
+        }
+
+        .legend-swatch.player {
+            background: rgba(255, 170, 0, 0.9);
+        }
+
+        .legend-swatch.hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+
         .toggle-switch {
             display: inline-flex;
             align-items: center;
@@ -322,23 +433,48 @@
             </div>
         </div>
 
-        <div class="section" id="save-section">
-            <div class="section-title">Save Current Tiles</div>
-            <p class="help-text" id="save-help">
-                Mark tiles in an instance, then save them as a named layout here.
-            </p>
-            <div class="save-layout">
-                <input type="text" id="layout-name" placeholder="Enter layout name (e.g., 'Croesus', 'ED3 Boss 1')">
-                <button onclick="saveLayout()" id="save-button" disabled>Save Layout</button>
+        <div class="view-toggle">
+            <button class="view-button active" data-view="layouts">Layouts</button>
+            <button class="view-button" data-view="chunk">Chunk Map</button>
+        </div>
+
+        <div id="view-layouts" class="view-panel active">
+            <div class="section" id="save-section">
+                <div class="section-title">Save Current Tiles</div>
+                <p class="help-text" id="save-help">
+                    Mark tiles in an instance, then save them as a named layout here.
+                </p>
+                <div class="save-layout">
+                    <input type="text" id="layout-name" placeholder="Enter layout name (e.g., 'Croesus', 'ED3 Boss 1')">
+                    <button onclick="saveLayout()" id="save-button" disabled>Save Layout</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Saved Layouts</div>
+                <div class="layout-list" id="layout-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📍</div>
+                        <p>No saved layouts yet</p>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="section">
-            <div class="section-title">Saved Layouts</div>
-            <div class="layout-list" id="layout-list">
-                <div class="empty-state">
-                    <div class="empty-state-icon">📍</div>
-                    <p>No saved layouts yet</p>
+        <div id="view-chunk" class="view-panel">
+            <div class="section chunk-grid-disabled" id="chunk-grid-section">
+                <div class="section-title">Chunk Grid Map</div>
+                <p class="help-text" id="chunk-grid-help">
+                    Loading chunk information...
+                </p>
+                <div class="chunk-grid-wrapper">
+                    <div class="chunk-grid-meta" id="chunk-grid-meta">Chunk (--, --)</div>
+                    <div class="chunk-grid" id="chunk-grid"></div>
+                    <div class="chunk-grid-legend">
+                        <span><span class="legend-swatch player"></span>Player</span>
+                        <span><span class="legend-swatch marked"></span>Marked</span>
+                        <span><span class="legend-swatch hover"></span>Hover Preview</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -349,8 +485,21 @@
             inInstance: false,
             tempTileCount: 0,
             activeLayoutId: null,
-            layouts: []
+            layouts: [],
+            chunkGrid: null
         };
+
+        const chunkGridSection = document.getElementById('chunk-grid-section');
+        const chunkGridContainer = document.getElementById('chunk-grid');
+        const chunkGridHelp = document.getElementById('chunk-grid-help');
+        const chunkGridMeta = document.getElementById('chunk-grid-meta');
+        let chunkGridHoverKey = null;
+        const viewButtons = document.querySelectorAll('.view-button');
+        const viewPanels = {
+            layouts: document.getElementById('view-layouts'),
+            chunk: document.getElementById('view-chunk')
+        };
+        let activeView = 'layouts';
 
         // Listen for messages from Lua
         // Bolt uses a custom message system
@@ -387,6 +536,7 @@
 
             if (parsedData.type === 'state_update') {
                 currentState = { ...currentState, ...parsedData };
+                currentState.chunkGrid = parsedData.chunkGrid || null;
                 updateUI();
             } else if (parsedData.type === 'layouts_update') {
                 currentState.layouts = parsedData.layouts || [];
@@ -425,6 +575,7 @@
             }
 
             // Update layouts list
+            updateChunkGrid();
             updateLayoutsList();
         }
 
@@ -464,6 +615,159 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        function isChunkGridInteractive() {
+            return currentState.chunkGrid && currentState.chunkGrid.enabled;
+        }
+
+        function resetChunkGridHover(shouldNotify) {
+            const hadHover = !!chunkGridHoverKey;
+            if (chunkGridContainer) {
+                const active = chunkGridContainer.querySelector('.grid-cell.hover');
+                if (active) {
+                    active.classList.remove('hover');
+                }
+            }
+            if (shouldNotify && hadHover) {
+                sendToLua({ action: 'hover_chunk_tile', clear: true });
+            }
+            chunkGridHoverKey = null;
+        }
+
+        function updateChunkGrid() {
+            if (!chunkGridSection || !chunkGridContainer) {
+                return;
+            }
+
+            const gridData = currentState.chunkGrid;
+
+            if (!gridData || typeof gridData.chunkX === 'undefined' || typeof gridData.chunkZ === 'undefined') {
+                chunkGridSection.classList.add('chunk-grid-disabled');
+                chunkGridContainer.innerHTML = '';
+                if (chunkGridMeta) {
+                    chunkGridMeta.textContent = 'Chunk (--, --)';
+                }
+                if (chunkGridHelp) {
+                    chunkGridHelp.textContent = 'Chunk information unavailable.';
+                }
+                resetChunkGridHover(true);
+                return;
+            }
+
+            const enabled = !!gridData.enabled;
+            chunkGridSection.classList.toggle('chunk-grid-disabled', !enabled);
+
+            if (chunkGridHelp) {
+                if (enabled) {
+                    const modeLabel = gridData.mode === 'instance'
+                        ? 'Instance temporary tiles'
+                        : 'World markers';
+                    chunkGridHelp.textContent = `Editing ${modeLabel}. Hover to preview tiles, click to mark/unmark. Orange shows where you stand.`;
+                } else {
+                    chunkGridHelp.textContent = 'Chunk information unavailable.';
+                }
+            }
+
+            if (chunkGridMeta) {
+                const chunkLabel = `Chunk (${gridData.chunkX}, ${gridData.chunkZ})`;
+                let localLabel = 'Local (--, --)';
+                if (typeof gridData.playerLocalX === 'number' && typeof gridData.playerLocalZ === 'number') {
+                    localLabel = `Local (${gridData.playerLocalX}, ${gridData.playerLocalZ})`;
+                }
+                const modeLabel = gridData.mode === 'instance' ? 'Instance Tiles' : 'World Markers';
+                chunkGridMeta.textContent = `${chunkLabel} • ${localLabel} • ${modeLabel}`;
+            }
+
+            if (!enabled) {
+                chunkGridContainer.innerHTML = '';
+                resetChunkGridHover(true);
+                return;
+            }
+
+            const size = gridData.size || 64;
+            const marked = gridData.marked || [];
+            const markedSet = new Set(
+                marked
+                    .filter(tile => typeof tile.localX === 'number' && typeof tile.localZ === 'number')
+                    .map(tile => `${tile.localX},${tile.localZ}`)
+            );
+
+            let html = '';
+            for (let displayZ = 0; displayZ < size; displayZ++) {
+                const localZ = size - 1 - displayZ;
+                for (let localX = 0; localX < size; localX++) {
+                    const key = `${localX},${localZ}`;
+                    const classes = ['grid-cell'];
+                    if (markedSet.has(key)) {
+                        classes.push('marked');
+                    }
+                    if (gridData.playerLocalX === localX && gridData.playerLocalZ === localZ) {
+                        classes.push('player');
+                    }
+                    if (chunkGridHoverKey === key) {
+                        classes.push('hover');
+                    }
+                    html += `<div class="${classes.join(' ')}" data-local-x="${localX}" data-local-z="${localZ}"></div>`;
+                }
+            }
+
+            chunkGridContainer.innerHTML = html;
+        }
+
+        function handleChunkGridHover(event) {
+            if (!isChunkGridInteractive()) {
+                return;
+            }
+
+            const cell = event.target.closest('.grid-cell');
+            if (!cell || !chunkGridContainer.contains(cell)) {
+                return;
+            }
+
+            const key = `${cell.dataset.localX},${cell.dataset.localZ}`;
+            if (key === chunkGridHoverKey) {
+                return;
+            }
+
+            const active = chunkGridContainer.querySelector('.grid-cell.hover');
+            if (active) {
+                active.classList.remove('hover');
+            }
+
+            chunkGridHoverKey = key;
+            cell.classList.add('hover');
+
+            sendToLua({
+                action: 'hover_chunk_tile',
+                localX: Number(cell.dataset.localX),
+                localZ: Number(cell.dataset.localZ)
+            });
+        }
+
+        function handleChunkGridLeave() {
+            if (!chunkGridHoverKey) {
+                return;
+            }
+            resetChunkGridHover(true);
+        }
+
+        function handleChunkGridClick(event) {
+            if (!isChunkGridInteractive()) {
+                return;
+            }
+
+            const cell = event.target.closest('.grid-cell');
+            if (!cell || !chunkGridContainer.contains(cell)) {
+                return;
+            }
+
+            sendToLua({
+                action: 'toggle_chunk_tile',
+                localX: Number(cell.dataset.localX),
+                localZ: Number(cell.dataset.localZ),
+                scope: currentState.chunkGrid ? currentState.chunkGrid.mode : null
+            });
         }
 
         function saveLayout() {
@@ -555,6 +859,28 @@
             }
         }
 
+        function switchView(targetView) {
+            if (!targetView || targetView === activeView || !viewPanels[targetView]) {
+                return;
+            }
+
+            viewButtons.forEach(button => {
+                button.classList.toggle('active', button.dataset.view === targetView);
+            });
+
+            Object.entries(viewPanels).forEach(([name, panel]) => {
+                if (panel) {
+                    panel.classList.toggle('active', name === targetView);
+                }
+            });
+
+            activeView = targetView;
+
+            if (activeView !== 'chunk') {
+                resetChunkGridHover(true);
+            }
+        }
+
         function closeWindow() {
             sendToLua({
                 action: 'close'
@@ -578,6 +904,19 @@
             div.textContent = text;
             return div.innerHTML;
         }
+
+        if (chunkGridContainer) {
+            chunkGridContainer.addEventListener('mouseover', handleChunkGridHover);
+            chunkGridContainer.addEventListener('mouseleave', handleChunkGridLeave);
+            chunkGridContainer.addEventListener('click', handleChunkGridClick);
+        }
+
+        viewButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const target = button.dataset.view;
+                switchView(target);
+            });
+        });
 
         // Enable/disable save button based on input
         document.getElementById('layout-name').addEventListener('input', function() {
