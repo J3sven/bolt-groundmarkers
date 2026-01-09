@@ -13,14 +13,40 @@ Copy the following URL and add it as a custom plugin in Bolt:
 ---
 
 ## Quick Controls
-| Action | Shortcut |
-| --- | --- |
-| Mark / unmark the tile under your cursor | `Alt + Middle Click` |
-| Cycle a tile through the color palette | `Ctrl + Middle Click` |
-| Cycle the global palette selection | `Ctrl + Scroll` |
-| Open / close the layouts UI | Click the tile launcher button (`Shift+Drag` to move it) |
-| Adjust chunk-tile height in the grid | `Shift + Scroll` over a marked cell |
-| Zoom the chunk grid | Scroll (no modifier) |
+<table>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Shortcut</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Mark / unmark the tile under your cursor</td>
+      <td><code>Alt + Middle Click</code></td>
+    </tr>
+    <tr>
+      <td>Cycle a tile through the color palette</td>
+      <td><code>Ctrl + Middle Click</code></td>
+    </tr>
+    <tr>
+      <td>Cycle the global palette selection</td>
+      <td><code>Ctrl + Scroll</code></td>
+    </tr>
+    <tr>
+      <td>Open / close the layouts UI</td>
+      <td>Click the tile launcher button (<code>Shift + Drag</code> to move it)</td>
+    </tr>
+    <tr>
+      <td>Adjust chunk-tile height in the grid</td>
+      <td><code>Shift + Scroll</code> over a marked cell</td>
+    </tr>
+    <tr>
+      <td>Zoom the chunk grid</td>
+      <td>Scroll (no modifier)</td>
+    </tr>
+  </tbody>
+</table>
 
 ---
 
