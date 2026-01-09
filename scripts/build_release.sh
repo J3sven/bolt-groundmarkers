@@ -12,11 +12,13 @@ expects.
 Options:
   --base-url <url>   Base URL where you will host the tarball (required).
   --no-bump          Do not bump bolt.json version; reuse the existing value.
+  --tar-only         Only create the tar.zst archive; skip checksum/meta output.
 EOF
 }
 
 BASE_URL=""
 NO_BUMP=false
+TAR_ONLY=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -26,6 +28,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-bump)
             NO_BUMP=true
+            shift
+            ;;
+        --tar-only)
+            TAR_ONLY=true
             shift
             ;;
         -h|--help)
@@ -40,8 +46,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$BASE_URL" ]]; then
-    echo "Error: --base-url is required." >&2
+if [[ -z "$BASE_URL" && "$TAR_ONLY" == false ]]; then
+    echo "Error: --base-url is required unless --tar-only is specified." >&2
     usage
     exit 1
 fi
@@ -115,6 +121,12 @@ fi
 
 zstd -T0 --rm -f "$tar_path"
 archive_path="${tar_path}.zst"
+
+if [[ "$TAR_ONLY" == true ]]; then
+    echo "Created archive: $archive_path"
+    echo "Tar-only mode enabled; skipping checksum and meta.json generation."
+    exit 0
+fi
 
 if ! command -v sha256sum >/dev/null 2>&1; then
     echo "Error: sha256sum is required but not found in PATH." >&2

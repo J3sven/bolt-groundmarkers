@@ -77,29 +77,3 @@ Ground Markers ships with a sensible default palette, but every slot can be rena
 * Holding **Shift** while dragging the button lets you move it anywhere on the screen. Its position is remembered between sessions.
 
 ---
-
-## Packaging & Meta Distribution
-Use the helper shell script to bundle releases and generate the Bolt-compatible manifest:
-
-```bash
-scripts/build_release.sh --base-url https://example.com/downloads
-```
-
-This will:
-1. Read the plugin version from `bolt.json`, bump the last numeric segment (use `--no-bump` to reuse it), and write the change.
-2. Bundle the runtime files into `dist/bolt-groundmarkers-v<version>.tar.zst` using `zstd`.
-3. Compute the SHA256 checksum and write `dist/meta.json`:
-   ```json
-   {
-     "sha256": "<checksum>",
-     "version": "<version>",
-     "url": "https://example.com/downloads/bolt-groundmarkers-v<version>.tar.zst"
-   }
-   ```
-4. Upload both the tarball and meta file (e.g., to GitHub Pages) and provide Bolt with the meta URL so users can self-update.
-
-The script requires common Unix tooling (`tar`, `zstd`, `sha256sum`, `perl`) and only packages the runtime directories (`core`, `data`, `gfx`, `input`, `ui`, etc.).
-
----
-
-Need help or found a bug? Open an issue with reproduction steps, or export/share the relevant layout JSON. Happy marking!
