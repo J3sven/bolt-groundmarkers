@@ -28,7 +28,7 @@ hooks.init(bolt)
 instanceManager.init(bolt)
 
 -- Initialize GUI bridge
-guiBridge.init()
+guiBridge.init(bolt)
 
 -- Set up rendering hooks
 render.hookRender3D(state, bolt, hooks)
@@ -49,4 +49,4 @@ input.bind(state, bolt, tiles, colors)
 guiBridge.open(bolt, state)
 guiBridge.sendFullUpdate(bolt, state)
 
-bolt.saveconfig("marker_debug.txt", "Plugin initialized with simplified instance system - GUI opened")
+bolt.saveconfig("marker_debug.txt", "Plugin initialized with simplified instance system - embedded browser ready")

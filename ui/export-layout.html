@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Layout</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        .container {
+            max-width: 460px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        .help-text {
+            color: #999;
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: #ccc;
+            font-size: 13px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #fff;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            margin-bottom: 16px;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #0078d4;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        button.primary {
+            background: #0078d4;
+            color: #fff;
+        }
+
+        button.primary:hover {
+            background: #005fa3;
+        }
+
+        button.secondary {
+            background: #3a3a3a;
+            color: #e0e0e0;
+        }
+
+        button.secondary:hover {
+            background: #4a4a4a;
+        }
+
+        .success-message {
+            color: #51cf66;
+            font-size: 12px;
+            margin-top: -12px;
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .success-message.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Export Layout</h1>
+        <p class="help-text" id="help-text">Copy the JSON below to share this layout.</p>
+
+        <label for="layout-json">Layout JSON</label>
+        <textarea id="layout-json" readonly></textarea>
+
+        <div class="success-message" id="success-message">Copied to clipboard!</div>
+
+        <div class="button-group">
+            <button class="secondary" id="close-button">Close</button>
+            <button class="primary" id="copy-button">Copy JSON</button>
+        </div>
+    </div>
+
+    <script>
+        const layoutJsonTextarea = document.getElementById('layout-json');
+        const copyButton = document.getElementById('copy-button');
+        const closeButton = document.getElementById('close-button');
+        const successMessage = document.getElementById('success-message');
+        const helpText = document.getElementById('help-text');
+
+        // Get layoutId from URL params and fetch layout data via Lua
+        const params = new URLSearchParams(window.location.search);
+        const layoutId = params.get('layoutId');
+
+        // Request layout data from Lua
+        fetch('https://bolt-api/send-message', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'get_layout_export', layoutId: layoutId })
+        }).catch(err => console.error('Failed to request layout export:', err));
+
+        // Listen for layout data from Lua
+        window.addEventListener('message', (event) => {
+            let data = event.data;
+
+            // Handle ArrayBuffer from bolt browser
+            if (data && data.type === 'pluginMessage' && data.content instanceof ArrayBuffer) {
+                const decoder = new TextDecoder();
+                const jsonString = decoder.decode(data.content);
+                try {
+                    data = JSON.parse(jsonString);
+                } catch (e) {
+                    console.error('Failed to parse decoded message:', jsonString, e);
+                    return;
+                }
+            }
+
+            // Handle string data
+            if (typeof data === 'string') {
+                try {
+                    data = JSON.parse(data);
+                } catch (e) {
+                    console.error('Failed to parse message:', data, e);
+                    return;
+                }
+            }
+
+            if (data && data.type === 'export_layout_data') {
+                const layoutName = data.layout.displayName || data.layout.name || 'Layout';
+                helpText.textContent = `Export "${layoutName}" - Copy the JSON below to share this layout.`;
+                layoutJsonTextarea.value = JSON.stringify(data.layout, null, 2);
+                layoutJsonTextarea.focus();
+                layoutJsonTextarea.select();
+            }
+        });
+
+        // Handle copy
+        copyButton.addEventListener('click', () => {
+            layoutJsonTextarea.focus();
+            layoutJsonTextarea.select();
+
+            try {
+                // Try modern clipboard API first
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(layoutJsonTextarea.value).then(() => {
+                        showSuccess();
+                    }).catch(() => {
+                        // Fallback to execCommand
+                        fallbackCopy();
+                    });
+                } else {
+                    // Fallback to execCommand
+                    fallbackCopy();
+                }
+            } catch (e) {
+                fallbackCopy();
+            }
+        });
+
+        function fallbackCopy() {
+            try {
+                const copied = document.execCommand('copy');
+                if (copied) {
+                    showSuccess();
+                }
+            } catch (e) {
+                console.error('Copy failed:', e);
+            }
+        }
+
+        function showSuccess() {
+            successMessage.classList.add('visible');
+            setTimeout(() => {
+                successMessage.classList.remove('visible');
+            }, 2000);
+        }
+
+        // Handle close
+        closeButton.addEventListener('click', () => {
+            fetch('https://bolt-api/send-message', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'close_overlay' })
+            }).catch(err => console.error('Failed to close overlay:', err));
+        });
+
+        // Handle Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeButton.click();
+            }
+        });
+    </script>
+</body>
+</html>

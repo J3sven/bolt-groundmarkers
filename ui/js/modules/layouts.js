@@ -8,7 +8,6 @@ import { escapeHtml, clamp } from './utils.js';
 
 const LayoutsModule = (() => {
     const listElement = document.getElementById('layout-list');
-    const layoutNameInput = document.getElementById('layout-name');
     const saveButton = document.getElementById('save-button');
     const importButton = document.getElementById('import-layout-button');
     const activeLayoutLabel = document.getElementById('active-layout');
@@ -18,10 +17,6 @@ const LayoutsModule = (() => {
         if (listElement) {
             listElement.addEventListener('change', handleToggleChange);
             listElement.addEventListener('click', handleActionClick);
-        }
-
-        if (layoutNameInput) {
-            layoutNameInput.addEventListener('input', refreshSaveState);
         }
 
         if (saveButton) {
@@ -34,12 +29,11 @@ const LayoutsModule = (() => {
     }
 
     function refreshSaveState() {
-        if (!layoutNameInput || !saveButton || !saveHelp) {
+        if (!saveButton || !saveHelp) {
             return;
         }
 
         const state = State.getState();
-        const name = layoutNameInput.value.trim();
 
         if (!state.inInstance) {
             saveHelp.textContent = 'Enter an instance and mark some tiles to save a layout.';
@@ -49,19 +43,10 @@ const LayoutsModule = (() => {
             saveHelp.textContent = `You have ${state.tempTileCount} temporary tile(s) ready to save.`;
         }
 
-        saveButton.disabled = !state.inInstance || state.tempTileCount === 0 || !name;
+        saveButton.disabled = !state.inInstance || state.tempTileCount === 0;
     }
 
     function saveLayout() {
-        if (!layoutNameInput) {
-            return;
-        }
-        const name = layoutNameInput.value.trim();
-        if (!name) {
-            Notifications.showNotification('Enter a layout name first.', 'warning');
-            return;
-        }
-
         const state = State.getState();
         if (!state.inInstance) {
             Notifications.showNotification('Enter an instance before saving layouts.', 'warning');
@@ -73,10 +58,8 @@ const LayoutsModule = (() => {
             return;
         }
 
-        Socket.sendToLua({ action: 'save_layout', name });
-        layoutNameInput.value = '';
-        refreshSaveState();
-        Notifications.showNotification(`Saving layout "${name}"...`, 'info');
+        // Open overlay for text input
+        Socket.sendToLua({ action: 'open_save_overlay' });
     }
 
     function renderLayouts() {
@@ -179,119 +162,14 @@ const LayoutsModule = (() => {
         }
     }
 
-    async function exportLayout(layoutId) {
-        const layout = State.getState().layouts.find((entry) => entry.id === layoutId);
-        if (!layout) {
-            Notifications.showNotification('Layout not found.', 'error');
-            return;
-        }
-
-        const payload = {
-            version: 1,
-            name: layout.name || '',
-            displayName: layout.displayName || layout.name || '',
-            tiles: Array.isArray(layout.tiles) ? layout.tiles : []
-        };
-
-        const jsonString = JSON.stringify(payload);
-        const label = payload.displayName || payload.name || 'Layout';
-
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(jsonString);
-                Notifications.showNotification(`Copied "${label}" to your clipboard.`, 'success');
-                return;
-            }
-            throw new Error('Clipboard unavailable');
-        } catch (error) {
-            openExportModal(jsonString);
-        }
-    }
-
-    function openExportModal(jsonString) {
-        Modal.open({
-            title: 'Export Layout',
-            message: 'Copy the JSON below to share this layout.',
-            showTextarea: true,
-            textareaValue: jsonString,
-            textareaReadonly: true,
-            focusEnd: true,
-            primaryLabel: 'Copy JSON',
-            secondaryLabel: 'Close',
-            onPrimary: () => {
-                const textarea = Modal.textarea;
-                if (!textarea) {
-                    return;
-                }
-                textarea.focus();
-                textarea.select();
-                try {
-                    const copied = document.execCommand('copy');
-                    if (copied) {
-                        Notifications.showNotification('Copied JSON to clipboard.', 'success');
-                        Modal.close();
-                        return;
-                    }
-                } catch (error) {
-                    // Ignore
-                }
-                Notifications.showNotification('Press Ctrl+C / Cmd+C to copy.', 'warning');
-            }
-        });
+    function exportLayout(layoutId) {
+        // Open overlay for export with text display
+        Socket.sendToLua({ action: 'open_export_overlay', layoutId: layoutId });
     }
 
     function openImportModal() {
-        Modal.open({
-            title: 'Import Layout',
-            message: 'Paste layout JSON below to add it to your list.',
-            showTextarea: true,
-            textareaValue: '',
-            textareaPlaceholder: '{ "version": 1, "name": "Example", "tiles": [...] }',
-            textareaReadonly: false,
-            primaryLabel: 'Import',
-            secondaryLabel: 'Cancel',
-            onPrimary: () => {
-                const textarea = Modal.textarea;
-                if (!textarea) {
-                    return;
-                }
-
-                const input = textarea.value.trim();
-                if (!input) {
-                    Notifications.showNotification('Paste layout JSON first.', 'warning');
-                    return;
-                }
-
-                let parsed;
-                try {
-                    parsed = JSON.parse(input);
-                } catch (error) {
-                    Notifications.showNotification('Invalid layout JSON.', 'error');
-                    return;
-                }
-
-                const tiles = normalizeImportedTiles(parsed.tiles);
-                if (tiles.length === 0) {
-                    Notifications.showNotification('No valid tiles were found in that layout.', 'error');
-                    return;
-                }
-
-                Modal.close();
-
-                Socket.sendToLua({
-                    action: 'import_layout',
-                    layout: {
-                        name: typeof parsed.name === 'string' ? parsed.name : '',
-                        displayName: typeof parsed.displayName === 'string'
-                            ? parsed.displayName
-                            : (typeof parsed.prettyName === 'string' ? parsed.prettyName : ''),
-                        tiles
-                    }
-                });
-
-                Notifications.showNotification('Importing layout...', 'info');
-            }
-        });
+        // Open overlay for text input
+        Socket.sendToLua({ action: 'open_import_overlay' });
     }
 
     function normalizeImportedTiles(rawTiles) {

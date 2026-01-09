@@ -29,15 +29,47 @@ local function sendImportResult(success, message)
     })
 end
 
--- Simple JSON decoder (basic, for our needs)
--- Initialize the GUI bridge
-function M.init()
-    browser = nil
-    isOpen = false
-    lastUpdateFrame = 0
+-- Config for embedded browser position and size
+local cfg = {
+    x = 0,
+    y = 0,
+    w = 500,
+    h = 700
+}
+local cfgname = "gui_config.ini"
+
+-- Load config from file
+local function loadconfig(bolt)
+    local cfgstring = bolt.loadconfig(cfgname)
+    if cfgstring == nil then return end
+    for k, v in string.gmatch(cfgstring, "(%w+)=([%-]?%d+)") do
+        cfg[k] = tonumber(v)
+    end
 end
 
--- Open the layouts GUI
+-- Save config to file
+local function saveconfig(bolt)
+    local cfgstring = ""
+    for k, v in pairs(cfg) do
+        cfgstring = string.format("%s%s=%s\n", cfgstring, k, tostring(v))
+    end
+    bolt.saveconfig(cfgname, cfgstring)
+end
+
+-- Overlay browser for text input operations
+local overlayBrowser = nil
+local overlayUrl = nil
+
+-- Initialize the GUI bridge
+function M.init(bolt)
+    browser = nil
+    overlayBrowser = nil
+    isOpen = false
+    lastUpdateFrame = 0
+    loadconfig(bolt)
+end
+
+-- Open the main embedded browser GUI
 function M.open(bolt, state)
     if isOpen then
         return
@@ -47,41 +79,102 @@ function M.open(bolt, state)
     cachedBolt = bolt
     cachedState = state
 
-    local width = 500
-    local height = 700
-
-    -- No custom JS needed - we'll use the bolt-api endpoints
-    browser = bolt.createbrowser(width, height, "plugin://ui/layouts.html")
+    -- Create embedded browser with saved position/size
+    browser = bolt.createembeddedbrowser(cfg.x, cfg.y, cfg.w, cfg.h, "plugin://ui/layouts.html")
     isOpen = true
 
-    -- Set up message handler for incoming messages from JavaScript via https://bolt-api/send-message
+    -- Set up message handler for incoming messages from JavaScript
     browser:onmessage(function(msg)
-        bolt.saveconfig("browser_incoming_debug.txt", string.format("Received from browser: %s", msg))
+        local debugMsg = string.format("[EMBEDDED] Received: %s (type: %s, len: %d)",
+            tostring(msg), type(msg), type(msg) == "string" and #msg or 0)
+        bolt.saveconfig("browser_incoming_debug.txt", debugMsg)
 
         local data = json.decode(msg)
 
         if data then
+            bolt.saveconfig("browser_incoming_debug.txt", string.format("[EMBEDDED] Decoded action: %s", tostring(data.action)))
             M.handleBrowserMessage(cachedBolt, cachedState, data)
         else
-            bolt.saveconfig("browser_incoming_debug.txt", string.format("Failed to parse message: %s", msg))
+            bolt.saveconfig("browser_incoming_debug.txt", string.format("[EMBEDDED] Failed to parse: %s", msg))
         end
     end)
 
-    bolt.saveconfig("instance_debug.txt", "Opened layouts GUI with bolt-api message handler")
+    -- Handle window close request
+    browser:oncloserequest(function()
+        M.close()
+    end)
+
+    -- Handle window reposition/resize
+    browser:onreposition(function(event)
+        local x, y, w, h = event:xywh()
+        cfg.x = x
+        cfg.y = y
+        cfg.w = w
+        cfg.h = h
+        saveconfig(bolt)
+    end)
+
+    bolt.saveconfig("instance_debug.txt", "Opened layouts GUI with embedded browser")
 end
 
--- Close the GUI
+-- Open overlay browser for text input operations
+function M.openOverlay(bolt, state, url)
+    if overlayBrowser then
+        overlayBrowser:close()
+    end
+
+    -- Cache bolt and state for message handler
+    cachedBolt = bolt
+    cachedState = state
+    overlayUrl = url
+
+    -- Create overlay browser (supports keyboard input)
+    overlayBrowser = bolt.createbrowser(400, 300, url)
+
+    -- Set up message handler
+    overlayBrowser:onmessage(function(msg)
+        local debugMsg = string.format("[OVERLAY] Received: %s (type: %s, len: %d)",
+            tostring(msg), type(msg), type(msg) == "string" and #msg or 0)
+        bolt.saveconfig("browser_incoming_debug.txt", debugMsg)
+
+        local data = json.decode(msg)
+
+        if data then
+            bolt.saveconfig("browser_incoming_debug.txt", string.format("[OVERLAY] Decoded action: %s", tostring(data.action)))
+            M.handleBrowserMessage(cachedBolt, cachedState, data)
+        else
+            bolt.saveconfig("browser_incoming_debug.txt", string.format("[OVERLAY] Failed to parse: %s", msg))
+        end
+    end)
+
+    bolt.saveconfig("instance_debug.txt", string.format("Opened overlay browser: %s", url))
+end
+
+-- Close overlay browser
+function M.closeOverlay()
+    if overlayBrowser then
+        overlayBrowser:close()
+        overlayBrowser = nil
+        overlayUrl = nil
+        if cachedBolt then
+            cachedBolt.saveconfig("instance_debug.txt", "Closed overlay browser")
+        end
+    end
+end
+
+-- Close the embedded GUI
 function M.close()
     if browser then
         browser:close()
         browser = nil
         isOpen = false
     end
+    M.closeOverlay()
 end
 
 -- Send state update to GUI
 function M.sendStateUpdate(state, bolt)
-    if not browser or not isOpen then
+    if not isOpen then
         return
     end
 
@@ -135,12 +228,10 @@ function M.sendStateUpdate(state, bolt)
         currentColorIndex = currentColorIndex
     }
 
-    local encoded = json.encode(message)
-    if encoded then
-        browser:sendmessage(encoded)
-    end
+    sendBrowserPayload(message)
 
     -- Debug log
+    local encoded = json.encode(message)
     bolt.saveconfig("gui_debug.txt", string.format(
         "Sent state update: inInstance=%s tempTiles=%d json=%s",
         tostring(managerState.inInstance), managerState.tempTileCount, encoded or "nil"
@@ -149,7 +240,7 @@ end
 
 -- Send layouts list to GUI
 function M.sendLayoutsUpdate(bolt)
-    if not browser or not isOpen then
+    if not isOpen then
         return
     end
 
@@ -170,12 +261,10 @@ function M.sendLayoutsUpdate(bolt)
         layouts = layouts
     }
 
-    local encoded = json.encode(message)
-    if encoded then
-        browser:sendmessage(encoded)
-    end
+    sendBrowserPayload(message)
 
     -- Debug log with actual JSON
+    local encoded = json.encode(message)
     bolt.saveconfig("gui_debug.txt", string.format(
         "Sent layouts update: %d layouts, json=%s",
         #layouts, encoded and encoded:sub(1, 200) or "nil"
@@ -206,15 +295,61 @@ end
 -- Handle messages from the browser
 function M.handleBrowserMessage(bolt, state, data)
     if not data or not data.action then
+        bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] No data or no action field")
         return
     end
+
+    bolt.saveconfig("browser_incoming_debug.txt", string.format("[HANDLER] Processing action: %s", data.action))
 
     local instanceManager = require("core.instance_manager")
     local layoutPersist = require("data.layout_persistence")
 
     if data.action == "ready" then
         -- Browser loaded, send initial state
+        bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] Sending full update for ready")
         M.sendFullUpdate(bolt, state)
+
+    elseif data.action == "open_save_overlay" then
+        bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] Opening save overlay")
+        -- Open overlay for saving a layout
+        local tempCount = instanceManager.getInstanceTileCount()
+        M.openOverlay(bolt, state, string.format("plugin://ui/save-layout.html?tempCount=%d", tempCount))
+
+    elseif data.action == "open_import_overlay" then
+        -- Open overlay for importing a layout
+        M.openOverlay(bolt, state, "plugin://ui/import-layout.html")
+
+    elseif data.action == "open_export_overlay" then
+        -- Open overlay for exporting a layout
+        if data.layoutId then
+            M.openOverlay(bolt, state, string.format("plugin://ui/export-layout.html?layoutId=%s", data.layoutId))
+        end
+
+    elseif data.action == "get_layout_export" then
+        -- Send layout data to overlay for export
+        if data.layoutId and overlayBrowser then
+            local layout = layoutPersist.getLayout(bolt, data.layoutId)
+            if layout then
+                local exportData = {
+                    version = 1,
+                    name = layout.name or "",
+                    displayName = layout.displayName or layout.name or "",
+                    tiles = layout.tiles or {}
+                }
+                local message = {
+                    type = "export_layout_data",
+                    layout = exportData
+                }
+                local encoded = json.encode(message)
+                if encoded then
+                    overlayBrowser:sendmessage(encoded)
+                end
+            end
+        end
+
+    elseif data.action == "close_overlay" then
+        -- Close overlay browser
+        M.closeOverlay()
 
     elseif data.action == "close" then
         M.close()
