@@ -29,11 +29,9 @@ function M.init(bolt)
     -- Single render3d hook that calls all registered handlers
     bolt.onrender3d(function(event)
         for name, handler in pairs(render3dHandlers) do
-            local success, error = pcall(handler, event)
+            local success = pcall(handler, event)
             if not success then
-                bolt.saveconfig("hooks_error.txt", string.format(
-                    "Error in render3d handler '%s': %s", name, tostring(error)
-                ))
+                -- swallow handler errors to avoid crashing Bolt
             end
         end
     end)
@@ -41,19 +39,12 @@ function M.init(bolt)
     -- Single swapbuffers hook that calls all registered handlers
     bolt.onswapbuffers(function(event)
         for name, handler in pairs(swapBufferHandlers) do
-            local success, error = pcall(handler, event)
+            local success = pcall(handler, event)
             if not success then
-                bolt.saveconfig("hooks_error.txt", string.format(
-                    "Error in swapbuffer handler '%s': %s", name, tostring(error)
-                ))
+                -- swallow handler errors to avoid crashing Bolt
             end
         end
     end)
-    
-    bolt.saveconfig("hooks_debug.txt", string.format(
-        "Hooks initialized: %d render3d handlers, %d swapbuffer handlers",
-        #render3dHandlers, #swapBufferHandlers
-    ))
 end
 
 -- Debug function to see what handlers are registered

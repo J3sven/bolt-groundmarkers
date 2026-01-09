@@ -160,9 +160,6 @@ function M.setColorIndex(state, bolt, newIndex)
   if n == 0 then return end
   local wrapped = ((newIndex - 1) % n) + 1
   state.setCurrentColorIndex(wrapped)
-  if bolt then
-    bolt.saveconfig("marker_debug.txt", string.format("Selected color: %s", M.getColorName(wrapped)))
-  end
 end
 
 function M.stepColor(state, bolt, forward)

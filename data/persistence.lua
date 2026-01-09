@@ -1,7 +1,6 @@
 local M = {}
 
 local SAVE_FILE = "marked_tiles.json"
-local DEBUG_FILE = "marker_debug.txt"
 
 function M.loadMarkers(state, bolt)
     local saved = bolt.loadconfig(SAVE_FILE)
@@ -80,9 +79,6 @@ function M.loadMarkers(state, bolt)
     
     state.setMarkedTiles(markedTiles)
     
-    local count = 0
-    for _ in pairs(markedTiles) do count = count + 1 end
-    bolt.saveconfig(DEBUG_FILE, "Loaded " .. count .. " marked tiles")
 end
 
 function M.saveMarkers(state, bolt)

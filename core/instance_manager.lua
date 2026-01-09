@@ -85,19 +85,10 @@ function M.update(bolt)
         state.hoverPreview = nil
     end
 
-    -- Debug logging
-    bolt.saveconfig("instance_debug.txt", string.format(
-        "Update: chunk(%d,%d) inInstance=%s wasInInstance=%s",
-        chunkX, chunkZ, tostring(state.inInstance), tostring(wasInInstance)
-    ))
-
     -- Entering instance
     if state.inInstance and not wasInInstance then
         state.instanceTiles = {}
         state.hoverPreview = nil
-        bolt.saveconfig("instance_debug.txt", string.format(
-            "ENTERED instance at chunk (%d, %d)", chunkX, chunkZ
-        ))
     end
 
     -- Leaving instance
@@ -105,9 +96,6 @@ function M.update(bolt)
         -- Clear temporary tiles when leaving instance
         state.instanceTiles = {}
         state.hoverPreview = nil
-        bolt.saveconfig("instance_debug.txt", string.format(
-            "LEFT instance at chunk (%d, %d)", chunkX, chunkZ
-        ))
     end
 end
 
@@ -268,11 +256,6 @@ function M.toggleTileAtLocal(localX, localZ, colorIndex, bolt)
 
     if state.instanceTiles[key] then
         M.removeInstanceTile(key)
-        if bolt then
-            bolt.saveconfig("marker_debug.txt", string.format(
-                "Removed grid-marked tile at chunk (%d,%d) local (%d,%d)",
-                chunkX, chunkZ, localX, localZ))
-        end
         return true
     end
 
@@ -299,12 +282,6 @@ function M.toggleTileAtLocal(localX, localZ, colorIndex, bolt)
     }
 
     M.addInstanceTile(tileData)
-
-    if bolt then
-        bolt.saveconfig("marker_debug.txt", string.format(
-            "Added grid-marked tile at chunk (%d,%d) local (%d,%d)",
-            chunkX, chunkZ, localX, localZ))
-    end
 
     return true
 end
@@ -341,12 +318,6 @@ function M.adjustInstanceTileHeight(localX, localZ, deltaSteps, bolt)
     local newY = (tile.y or state.playerWorldY or 0) + steps * HEIGHT_STEP
     tile.y = newY
     tile.worldY = newY
-
-    if bolt then
-        bolt.saveconfig("marker_debug.txt", string.format(
-            "Adjusted instance tile height at chunk (%d,%d) local (%d,%d) by %d (new Y=%.1f)",
-            chunkX, chunkZ, localX, localZ, steps * HEIGHT_STEP, newY))
-    end
 
     return true
 end

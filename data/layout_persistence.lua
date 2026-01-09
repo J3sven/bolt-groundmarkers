@@ -188,9 +188,6 @@ function M.saveLayouts(bolt, layoutsData)
         local ok, encoded = pcall(bolt.json.encode, layoutsData)
         if ok and encoded then
             bolt.saveconfig(LAYOUTS_FILE, encoded)
-            bolt.saveconfig("layout_save_debug.txt", string.format(
-                "Saved %d layouts to file (bolt.json)", #layoutsData.layouts
-            ))
             return true
         end
     end
@@ -198,9 +195,6 @@ function M.saveLayouts(bolt, layoutsData)
     local encoded = simplejson.encode(layoutsData)
     if encoded then
         bolt.saveconfig(LAYOUTS_FILE, encoded)
-        bolt.saveconfig("layout_save_debug.txt", string.format(
-            "Saved %d layouts to file (simplejson)", #layoutsData.layouts
-        ))
         return true
     end
 
@@ -234,10 +228,6 @@ function M.createLayout(bolt, name, instanceTiles)
     table.insert(layoutsData.layouts, layout)
     M.saveLayouts(bolt, layoutsData)
 
-    bolt.saveconfig("instance_debug.txt", string.format(
-        "Created layout '%s' with %d tiles", layout.displayName or layout.name, #tiles
-    ))
-
     return id
 end
 
@@ -249,10 +239,6 @@ function M.deleteLayout(bolt, layoutId)
         if layout.id == layoutId then
             table.remove(layoutsData.layouts, i)
             M.saveLayouts(bolt, layoutsData)
-
-            bolt.saveconfig("instance_debug.txt", string.format(
-                "Deleted layout '%s'", layout.displayName or layout.name or layoutId
-            ))
 
             return true
         end
@@ -277,13 +263,7 @@ end
 -- Get all layouts
 function M.getAllLayouts(bolt)
     local layoutsData = M.loadLayouts(bolt)
-    local layouts = layoutsData.layouts or {}
-
-    bolt.saveconfig("instance_debug.txt", string.format(
-        "getAllLayouts: returning %d layouts", #layouts
-    ))
-
-    return layouts
+    return layoutsData.layouts or {}
 end
 
 -- Rename a layout

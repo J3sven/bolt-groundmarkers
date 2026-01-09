@@ -113,17 +113,9 @@ function M.open(bolt, state)
 
     -- Set up message handler for incoming messages from JavaScript
     browser:onmessage(function(msg)
-        local debugMsg = string.format("[EMBEDDED] Received: %s (type: %s, len: %d)",
-            tostring(msg), type(msg), type(msg) == "string" and #msg or 0)
-        bolt.saveconfig("browser_incoming_debug.txt", debugMsg)
-
         local data = json.decode(msg)
-
         if data then
-            bolt.saveconfig("browser_incoming_debug.txt", string.format("[EMBEDDED] Decoded action: %s", tostring(data.action)))
             M.handleBrowserMessage(cachedBolt, cachedState, data)
-        else
-            bolt.saveconfig("browser_incoming_debug.txt", string.format("[EMBEDDED] Failed to parse: %s", msg))
         end
     end)
 
@@ -142,7 +134,6 @@ function M.open(bolt, state)
         saveconfig(bolt)
     end)
 
-    bolt.saveconfig("instance_debug.txt", "Opened layouts GUI with embedded browser")
 end
 
 -- Open overlay browser for text input operations
@@ -161,21 +152,11 @@ function M.openOverlay(bolt, state, url)
 
     -- Set up message handler
     overlayBrowser:onmessage(function(msg)
-        local debugMsg = string.format("[OVERLAY] Received: %s (type: %s, len: %d)",
-            tostring(msg), type(msg), type(msg) == "string" and #msg or 0)
-        bolt.saveconfig("browser_incoming_debug.txt", debugMsg)
-
         local data = json.decode(msg)
-
         if data then
-            bolt.saveconfig("browser_incoming_debug.txt", string.format("[OVERLAY] Decoded action: %s", tostring(data.action)))
             M.handleBrowserMessage(cachedBolt, cachedState, data)
-        else
-            bolt.saveconfig("browser_incoming_debug.txt", string.format("[OVERLAY] Failed to parse: %s", msg))
         end
     end)
-
-    bolt.saveconfig("instance_debug.txt", string.format("Opened overlay browser: %s", url))
 end
 
 -- Close overlay browser
@@ -184,9 +165,6 @@ function M.closeOverlay()
         overlayBrowser:close()
         overlayBrowser = nil
         overlayUrl = nil
-        if cachedBolt then
-            cachedBolt.saveconfig("instance_debug.txt", "Closed overlay browser")
-        end
     end
 end
 
@@ -219,7 +197,6 @@ function M.openLauncher(bolt, state)
         savelauncherconfig(bolt)
     end)
 
-    bolt.saveconfig("instance_debug.txt", "Opened launcher button")
 end
 
 -- Close the launcher button
@@ -306,13 +283,6 @@ function M.sendStateUpdate(state, bolt)
     }
 
     sendBrowserPayload(message)
-
-    -- Debug log
-    local encoded = json.encode(message)
-    bolt.saveconfig("gui_debug.txt", string.format(
-        "Sent state update: inInstance=%s tempTiles=%d json=%s",
-        tostring(managerState.inInstance), managerState.tempTileCount, encoded or "nil"
-    ))
 end
 
 -- Send layouts list to GUI
@@ -324,28 +294,12 @@ function M.sendLayoutsUpdate(bolt)
     local layoutPersist = require("data.layout_persistence")
     local layouts = layoutPersist.getAllLayouts(bolt)
 
-    -- Debug: log first layout structure
-    if layouts[1] then
-        local debugStr = "First layout keys: "
-        for k, v in pairs(layouts[1]) do
-            debugStr = debugStr .. k .. "=" .. type(v) .. " "
-        end
-        bolt.saveconfig("gui_debug.txt", debugStr)
-    end
-
     local message = {
         type = "layouts_update",
         layouts = layouts
     }
 
     sendBrowserPayload(message)
-
-    -- Debug log with actual JSON
-    local encoded = json.encode(message)
-    bolt.saveconfig("gui_debug.txt", string.format(
-        "Sent layouts update: %d layouts, json=%s",
-        #layouts, encoded and encoded:sub(1, 200) or "nil"
-    ))
 end
 
 -- Send full update (state + layouts)
@@ -372,27 +326,20 @@ end
 -- Handle messages from the browser
 function M.handleBrowserMessage(bolt, state, data)
     if not data or not data.action then
-        bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] No data or no action field")
         return
     end
-
-    bolt.saveconfig("browser_incoming_debug.txt", string.format("[HANDLER] Processing action: %s", data.action))
 
     local instanceManager = require("core.instance_manager")
     local layoutPersist = require("data.layout_persistence")
 
     if data.action == "ready" then
-        -- Browser loaded, send initial state
-        bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] Sending full update for ready")
         M.sendFullUpdate(bolt, state)
 
     elseif data.action == "toggle_main_window" then
         -- Toggle the main window from launcher button
-        bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] Toggling main window")
         M.toggle(bolt, state)
 
     elseif data.action == "open_save_overlay" then
-        bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] Opening save overlay")
         -- Open overlay for saving a layout
         local tempCount = instanceManager.getInstanceTileCount()
         M.openOverlay(bolt, state, string.format("plugin://ui/save-layout.html?tempCount=%d", tempCount))
@@ -439,7 +386,6 @@ function M.handleBrowserMessage(bolt, state, data)
     elseif data.action == "save_layout" then
         -- Save current instance tiles as a layout
         if not instanceManager.isInInstance() then
-            bolt.saveconfig("instance_debug.txt", "Cannot save layout: not in instance")
             return
         end
 
@@ -452,10 +398,6 @@ function M.handleBrowserMessage(bolt, state, data)
         -- Send updates
         M.sendFullUpdate(bolt, state)
 
-        bolt.saveconfig("instance_debug.txt", string.format(
-            "Saved layout '%s' with ID %s", data.name, layoutId
-        ))
-
     elseif data.action == "activate_layout" then
         local layoutId = data.layoutId
         if not layoutId or layoutId == "" then
@@ -464,26 +406,17 @@ function M.handleBrowserMessage(bolt, state, data)
 
         local layout = layoutPersist.getLayout(bolt, layoutId)
         if not layout then
-            bolt.saveconfig("instance_debug.txt", string.format(
-                "Cannot activate layout %s: missing definition", layoutId
-            ))
             return
         end
 
         if instanceManager.setActiveLayout(layoutId) then
             M.sendStateUpdate(state, bolt)
-
-            bolt.saveconfig("instance_debug.txt", string.format(
-                "Activated layout %s (auto-apply ready)", layoutId
-            ))
         end
 
     elseif data.action == "deactivate_layout" then
         -- Deactivate current layout
         instanceManager.clearActiveLayout()
         M.sendStateUpdate(state, bolt)
-
-        bolt.saveconfig("instance_debug.txt", "Deactivated layout")
 
     elseif data.action == "delete_layout" then
         -- Delete a layout
@@ -495,10 +428,6 @@ function M.handleBrowserMessage(bolt, state, data)
         end
 
         M.sendFullUpdate(bolt, state)
-
-        bolt.saveconfig("instance_debug.txt", string.format(
-            "Deleted layout %s", data.layoutId
-        ))
 
     elseif data.action == "import_layout" then
         local layoutData = data.layout
@@ -512,17 +441,8 @@ function M.handleBrowserMessage(bolt, state, data)
             M.sendFullUpdate(bolt, state)
             local name = result and (result.displayName or result.name) or "Imported Layout"
             sendImportResult(true, string.format('Imported layout "%s".', name))
-            bolt.saveconfig("instance_debug.txt", string.format(
-                "Imported layout %s with %d tiles",
-                tostring(name),
-                result and #result.tiles or 0
-            ))
         else
             sendImportResult(false, result or "Import failed.")
-            bolt.saveconfig("instance_debug.txt", string.format(
-                "Import layout failed: %s",
-                tostring(result or "unknown error")
-            ))
         end
 
     elseif data.action == "toggle_chunk_tile" then

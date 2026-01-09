@@ -47,5 +47,3 @@ input.bind(state, bolt, tiles, colors)
 
 -- Open the launcher button on startup (persistent mini window)
 guiBridge.openLauncher(bolt, state)
-
-bolt.saveconfig("marker_debug.txt", "Plugin initialized with simplified instance system - launcher ready")
