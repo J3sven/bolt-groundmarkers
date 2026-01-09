@@ -7,12 +7,22 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <button class="close-button">×</button>
+    <!-- Resize handles -->
+    <div class="resize-handle top" data-resize="top"></div>
+    <div class="resize-handle bottom" data-resize="bottom"></div>
+    <div class="resize-handle left" data-resize="left"></div>
+    <div class="resize-handle right" data-resize="right"></div>
+    <div class="resize-handle top-left" data-resize="top-left"></div>
+    <div class="resize-handle top-right" data-resize="top-right"></div>
+    <div class="resize-handle bottom-left" data-resize="bottom-left"></div>
+    <div class="resize-handle bottom-right" data-resize="bottom-right"></div>
+
+    <div class="title-bar">
+        <span class="title-text">Instance Tile Layouts</span>
+        <button class="close-button">×</button>
+    </div>
 
     <div class="container">
-        <h1>Instance Tile Layouts</h1>
-        <p class="subtitle">Manage saved tile marker layouts for instances</p>
-
         <div class="status-bar">
             <div class="status-row">
                 <span class="status-label">Status:</span>

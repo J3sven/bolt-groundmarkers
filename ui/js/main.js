@@ -17,11 +17,64 @@ import ChunkGrid from './modules/chunk-grid.js';
             chunk: document.getElementById('view-chunk'),
             palette: document.getElementById('view-palette')
         },
-        layoutNameInput: document.getElementById('layout-name'),
+        titleBar: document.querySelector('.title-bar'),
         closeButton: document.querySelector('.close-button')
     };
 
     let activeView = 'layouts';
+
+    // Setup window dragging
+    if (dom.titleBar) {
+        dom.titleBar.addEventListener('mousedown', (e) => {
+            // Don't drag if clicking the close button
+            if (e.target.classList.contains('close-button')) {
+                return;
+            }
+            fetch('https://bolt-api/start-reposition?h=0&v=0').catch(err => console.error('Failed to start reposition:', err));
+        });
+    }
+
+    // Setup resize handles
+    const resizeHandles = document.querySelectorAll('.resize-handle');
+    resizeHandles.forEach(handle => {
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const resizeType = handle.dataset.resize;
+            let h = 0, v = 0;
+
+            // Determine h and v based on resize type
+            switch (resizeType) {
+                case 'top':
+                    h = 0; v = -1;
+                    break;
+                case 'bottom':
+                    h = 0; v = 1;
+                    break;
+                case 'left':
+                    h = -1; v = 0;
+                    break;
+                case 'right':
+                    h = 1; v = 0;
+                    break;
+                case 'top-left':
+                    h = -1; v = -1;
+                    break;
+                case 'top-right':
+                    h = 1; v = -1;
+                    break;
+                case 'bottom-left':
+                    h = -1; v = 1;
+                    break;
+                case 'bottom-right':
+                    h = 1; v = 1;
+                    break;
+            }
+
+            fetch(`https://bolt-api/start-reposition?h=${h}&v=${v}`).catch(err => console.error('Failed to start resize:', err));
+        });
+    });
 
     Palette.init();
     Layouts.init();

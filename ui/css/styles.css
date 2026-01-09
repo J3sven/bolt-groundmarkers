@@ -8,13 +8,33 @@ body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: rgba(20, 20, 25, 0.95);
     color: #e0e0e0;
-    padding: 20px;
+    padding: 0;
     overflow-y: auto;
     max-height: 100vh;
+}
+.title-bar {
+    background: linear-gradient(180deg, rgba(0, 212, 255, 0.15) 0%, rgba(0, 212, 255, 0.05) 100%);
+    border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: move;
+    user-select: none;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.title-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: #00d4ff;
+    text-shadow: 0 0 8px rgba(0, 212, 255, 0.4);
 }
 .container {
     max-width: 600px;
     margin: 0 auto;
+    padding: 20px;
 }
 h1 {
     font-size: 24px;
@@ -219,8 +239,23 @@ select { flex: 1; padding: 6px 10px; background: rgba(20, 20, 30, 0.8); border: 
 .palette-save { padding: 8px 14px; font-size: 12px; }
 .palette-empty { text-align: center; font-size: 13px; color: #888; }
 .help-text { font-size: 13px; color: #888; line-height: 1.5; background: rgba(255, 200, 0, 0.1); padding: 12px; border-radius: 4px; border-left: 3px solid #ffaa00; }
-.close-button { position: fixed; top: 20px; right: 20px; width: 32px; height: 32px; padding: 0; background: rgba(255, 68, 68, 0.8); border-radius: 50%; font-size: 18px; line-height: 32px; text-align: center; }
-.close-button:hover { background: rgba(255, 68, 68, 1); }
+.close-button {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: rgba(255, 68, 68, 0.6);
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 24px;
+    text-align: center;
+    border: 1px solid rgba(255, 68, 68, 0.4);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.close-button:hover {
+    background: rgba(255, 68, 68, 1);
+    border-color: rgba(255, 68, 68, 0.8);
+}
 .toggle-switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
 .toggle-switch input { display: none; }
 .toggle-track { position: relative; width: 42px; height: 22px; background: rgba(255,255,255,0.2); border-radius: 999px; transition: background 0.2s ease; border: 1px solid rgba(255,255,255,0.2); }
@@ -249,3 +284,73 @@ select { flex: 1; padding: 6px 10px; background: rgba(20, 20, 30, 0.8); border: 
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .modal-actions button { min-width: 110px; }
 @keyframes fade-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Resize handles */
+.resize-handle {
+    position: fixed;
+    z-index: 10000;
+}
+
+.resize-handle.top {
+    top: 0;
+    left: 5px;
+    right: 5px;
+    height: 5px;
+    cursor: ns-resize;
+}
+
+.resize-handle.bottom {
+    bottom: 0;
+    left: 5px;
+    right: 5px;
+    height: 5px;
+    cursor: ns-resize;
+}
+
+.resize-handle.left {
+    left: 0;
+    top: 5px;
+    bottom: 5px;
+    width: 5px;
+    cursor: ew-resize;
+}
+
+.resize-handle.right {
+    right: 0;
+    top: 5px;
+    bottom: 5px;
+    width: 5px;
+    cursor: ew-resize;
+}
+
+.resize-handle.top-left {
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 5px;
+    cursor: nwse-resize;
+}
+
+.resize-handle.top-right {
+    top: 0;
+    right: 0;
+    width: 5px;
+    height: 5px;
+    cursor: nesw-resize;
+}
+
+.resize-handle.bottom-left {
+    bottom: 0;
+    left: 0;
+    width: 5px;
+    height: 5px;
+    cursor: nesw-resize;
+}
+
+.resize-handle.bottom-right {
+    bottom: 0;
+    right: 0;
+    width: 5px;
+    height: 5px;
+    cursor: nwse-resize;
+}
