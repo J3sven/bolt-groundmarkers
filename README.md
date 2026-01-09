@@ -7,6 +7,7 @@ Ground Markers is a [Bolt launcher](https://github.com/adamcake/Bolt) plugin for
 
 ## Installation
 Copy the following URL and add it as a custom plugin in Bolt:
+
 ```https://j3sven.github.io/bolt-groundmarkers/dist/meta.json```
 
 ---
