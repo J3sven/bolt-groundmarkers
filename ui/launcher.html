@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ground Markers</title>
+    <link rel="stylesheet" href="css/nis.css">
     <style>
         * {
             margin: 0;
@@ -16,46 +17,39 @@
             height: 35px;
             background: transparent;
             overflow: hidden;
-            cursor: move;
-        }
-
-        .launcher-button {
-            width: 35px;
-            height: 35px;
-            background: linear-gradient(135deg, rgba(0, 168, 204, 0.95), rgba(0, 212, 255, 0.95));
-            border: 2px solid rgba(0, 212, 255, 0.6);
-            border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-            user-select: none;
         }
 
-        .launcher-button:hover {
-            background: linear-gradient(135deg, rgba(0, 191, 230, 1), rgba(0, 255, 255, 1));
-            border-color: rgba(0, 255, 255, 0.8);
-            box-shadow: 0 4px 16px rgba(0, 212, 255, 0.6);
-            transform: scale(1.05);
-        }
-
-        .launcher-button:active {
-            transform: scale(0.95);
+        #launcher-btn {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
         }
 
         .launcher-icon {
-            font-size: 20px;
-            color: white;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .launcher-icon img {
+            display: block;
+            width: 25px;
+            height: 25px;
         }
     </style>
 </head>
 <body>
-    <div class="launcher-button" id="launcher-btn">
-        <div class="launcher-icon">📍</div>
-    </div>
+    <button class="nisimgbutton" id="launcher-btn">
+        <span class="launcher-icon"><img src="./css/sprites/tilesprite.png"/></span>
+    </button>
 
     <script>
         const launcherBtn = document.getElementById('launcher-btn');

@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Instance Layouts</title>
+    <link rel="stylesheet" href="css/nis.css">
     <link rel="stylesheet" href="css/styles.css">
 </head>
-<body>
+<body class="nis gm-ui">
     <!-- Resize handles -->
     <div class="resize-handle top" data-resize="top"></div>
     <div class="resize-handle bottom" data-resize="bottom"></div>
@@ -51,6 +52,7 @@
                     Mark tiles in an instance, then save them as a named layout here.
                 </p>
                 <div class="save-layout">
+                    <input type="text" id="layout-name" placeholder="Enter layout name (e.g., 'Croesus', 'ED3 Boss 1')">
                     <button id="save-button" disabled>Save Layout</button>
                 </div>
             </div>
