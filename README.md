@@ -1,6 +1,8 @@
 # Ground Markers
 Ground Markers is a [Bolt launcher](https://github.com/adamcake/Bolt) plugin for RuneScape 3 that brings the comfort of RuneLite / HDOS style tile markers to RS3, including fully user-controlled layouts for instanced content.
 
+<img width="955" height="608" alt="image" src="https://github.com/user-attachments/assets/ea406ae2-88de-4528-b5d9-c7aec7eb5d2b" />
+
 ---
 
 ## Installation
