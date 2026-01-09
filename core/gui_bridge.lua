@@ -5,6 +5,7 @@ local colors = require("core.colors")
 local json = require("core.simplejson")
 
 local browser = nil
+local launcherBrowser = nil
 local isOpen = false
 local lastUpdateFrame = 0
 local updateInterval = 60  -- Update GUI every 60 frames
@@ -38,6 +39,13 @@ local cfg = {
 }
 local cfgname = "gui_config.ini"
 
+-- Config for launcher button position
+local launcherCfg = {
+    x = 100,
+    y = 100
+}
+local launcherCfgname = "launcher_config.ini"
+
 -- Load config from file
 local function loadconfig(bolt)
     local cfgstring = bolt.loadconfig(cfgname)
@@ -56,6 +64,24 @@ local function saveconfig(bolt)
     bolt.saveconfig(cfgname, cfgstring)
 end
 
+-- Load launcher config from file
+local function loadlauncherconfig(bolt)
+    local cfgstring = bolt.loadconfig(launcherCfgname)
+    if cfgstring == nil then return end
+    for k, v in string.gmatch(cfgstring, "(%w+)=([%-]?%d+)") do
+        launcherCfg[k] = tonumber(v)
+    end
+end
+
+-- Save launcher config to file
+local function savelauncherconfig(bolt)
+    local cfgstring = ""
+    for k, v in pairs(launcherCfg) do
+        cfgstring = string.format("%s%s=%s\n", cfgstring, k, tostring(v))
+    end
+    bolt.saveconfig(launcherCfgname, cfgstring)
+end
+
 -- Overlay browser for text input operations
 local overlayBrowser = nil
 local overlayUrl = nil
@@ -63,10 +89,12 @@ local overlayUrl = nil
 -- Initialize the GUI bridge
 function M.init(bolt)
     browser = nil
+    launcherBrowser = nil
     overlayBrowser = nil
     isOpen = false
     lastUpdateFrame = 0
     loadconfig(bolt)
+    loadlauncherconfig(bolt)
 end
 
 -- Open the main embedded browser GUI
@@ -162,6 +190,46 @@ function M.closeOverlay()
     end
 end
 
+-- Open the launcher button (persistent mini window)
+function M.openLauncher(bolt, state)
+    if launcherBrowser then
+        return  -- Already open
+    end
+
+    -- Cache bolt and state for message handler
+    cachedBolt = bolt
+    cachedState = state
+
+    -- Create small embedded browser for launcher button (35x35)
+    launcherBrowser = bolt.createembeddedbrowser(launcherCfg.x, launcherCfg.y, 35, 35, "plugin://ui/launcher.html")
+
+    -- Set up message handler for launcher
+    launcherBrowser:onmessage(function(msg)
+        local data = json.decode(msg)
+        if data then
+            M.handleBrowserMessage(cachedBolt, cachedState, data)
+        end
+    end)
+
+    -- Handle launcher reposition
+    launcherBrowser:onreposition(function(event)
+        local x, y, w, h = event:xywh()
+        launcherCfg.x = x
+        launcherCfg.y = y
+        savelauncherconfig(bolt)
+    end)
+
+    bolt.saveconfig("instance_debug.txt", "Opened launcher button")
+end
+
+-- Close the launcher button
+function M.closeLauncher()
+    if launcherBrowser then
+        launcherBrowser:close()
+        launcherBrowser = nil
+    end
+end
+
 -- Close the embedded GUI
 function M.close()
     if browser then
@@ -170,6 +238,15 @@ function M.close()
         isOpen = false
     end
     M.closeOverlay()
+end
+
+-- Toggle the main window open/closed
+function M.toggle(bolt, state)
+    if isOpen then
+        M.close()
+    else
+        M.open(bolt, state)
+    end
 end
 
 -- Send state update to GUI
@@ -308,6 +385,11 @@ function M.handleBrowserMessage(bolt, state, data)
         -- Browser loaded, send initial state
         bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] Sending full update for ready")
         M.sendFullUpdate(bolt, state)
+
+    elseif data.action == "toggle_main_window" then
+        -- Toggle the main window from launcher button
+        bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] Toggling main window")
+        M.toggle(bolt, state)
 
     elseif data.action == "open_save_overlay" then
         bolt.saveconfig("browser_incoming_debug.txt", "[HANDLER] Opening save overlay")

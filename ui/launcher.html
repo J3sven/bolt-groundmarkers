@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ground Markers</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 35px;
+            height: 35px;
+            background: transparent;
+            overflow: hidden;
+            cursor: move;
+        }
+
+        .launcher-button {
+            width: 35px;
+            height: 35px;
+            background: linear-gradient(135deg, rgba(0, 168, 204, 0.95), rgba(0, 212, 255, 0.95));
+            border: 2px solid rgba(0, 212, 255, 0.6);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            user-select: none;
+        }
+
+        .launcher-button:hover {
+            background: linear-gradient(135deg, rgba(0, 191, 230, 1), rgba(0, 255, 255, 1));
+            border-color: rgba(0, 255, 255, 0.8);
+            box-shadow: 0 4px 16px rgba(0, 212, 255, 0.6);
+            transform: scale(1.05);
+        }
+
+        .launcher-button:active {
+            transform: scale(0.95);
+        }
+
+        .launcher-icon {
+            font-size: 20px;
+            color: white;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="launcher-button" id="launcher-btn">
+        <div class="launcher-icon">📍</div>
+    </div>
+
+    <script>
+        const launcherBtn = document.getElementById('launcher-btn');
+        let mouseDownTime = 0;
+        let mouseDownX = 0;
+        let mouseDownY = 0;
+        let hasMoved = false;
+
+        launcherBtn.addEventListener('mousedown', (e) => {
+            // Only handle left click
+            if (e.button !== 0) return;
+
+            mouseDownTime = Date.now();
+            mouseDownX = e.clientX;
+            mouseDownY = e.clientY;
+            hasMoved = false;
+
+            // If shift is held, start repositioning
+            if (e.shiftKey) {
+                fetch('https://bolt-api/start-reposition?h=0&v=0')
+                    .catch(err => console.error('Failed to start reposition:', err));
+            }
+        });
+
+        launcherBtn.addEventListener('mousemove', (e) => {
+            if (mouseDownTime > 0) {
+                const dx = Math.abs(e.clientX - mouseDownX);
+                const dy = Math.abs(e.clientY - mouseDownY);
+
+                // If moved more than 3 pixels, it's a drag
+                if (dx > 3 || dy > 3) {
+                    hasMoved = true;
+                }
+            }
+        });
+
+        launcherBtn.addEventListener('mouseup', (e) => {
+            // Only handle left click
+            if (e.button !== 0) return;
+
+            const clickDuration = Date.now() - mouseDownTime;
+
+            // Only toggle if it was quick and didn't move much (regular click, not shift+drag)
+            if (clickDuration < 300 && !hasMoved && !e.shiftKey) {
+                fetch('https://bolt-api/send-message', {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'toggle_main_window' })
+                }).catch(err => console.error('Failed to toggle window:', err));
+            }
+
+            mouseDownTime = 0;
+            hasMoved = false;
+        });
+
+        // Prevent context menu
+        launcherBtn.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>

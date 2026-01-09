@@ -45,8 +45,7 @@ end)
 -- Set up input bindings
 input.bind(state, bolt, tiles, colors)
 
--- Open the GUI on startup
-guiBridge.open(bolt, state)
-guiBridge.sendFullUpdate(bolt, state)
+-- Open the launcher button on startup (persistent mini window)
+guiBridge.openLauncher(bolt, state)
 
-bolt.saveconfig("marker_debug.txt", "Plugin initialized with simplified instance system - embedded browser ready")
+bolt.saveconfig("marker_debug.txt", "Plugin initialized with simplified instance system - launcher ready")
