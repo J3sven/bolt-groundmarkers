@@ -119,6 +119,10 @@ h1 {
 .section-header .section-title {
     margin-bottom: 0;
 }
+.section-header-buttons {
+    display: flex;
+    gap: 8px;
+}
 .save-layout {
     display: flex;
     gap: 8px;

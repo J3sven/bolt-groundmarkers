@@ -410,6 +410,24 @@ function M.handleBrowserMessage(bolt, state, data)
         -- Open overlay for importing a layout
         M.openOverlay(bolt, state, "plugin://ui/import-layout.html")
 
+    elseif data.action == "open_merge_overlay" then
+        -- Open overlay for merging chunk layouts
+        M.openOverlay(bolt, state, "plugin://ui/merge-layouts.html")
+
+    elseif data.action == "get_chunk_layouts_for_merge" then
+        -- Send chunk layouts data to merge overlay
+        if overlayBrowser then
+            local chunkLayouts = layoutPersist.getChunkLayouts(bolt)
+            local message = {
+                type = "chunk_layouts_data",
+                layouts = chunkLayouts
+            }
+            local encoded = json.encode(message)
+            if encoded then
+                overlayBrowser:sendmessage(encoded)
+            end
+        end
+
     elseif data.action == "open_export_overlay" then
         -- Open overlay for exporting a layout
         if data.layoutId then
@@ -584,6 +602,40 @@ function M.handleBrowserMessage(bolt, state, data)
             sendImportResult(true, string.format('Imported layout "%s".', name))
         else
             sendImportResult(false, result or "Import failed.")
+        end
+
+    elseif data.action == "merge_layouts" then
+        local layoutIds = data.layoutIds
+        local newName = data.name
+        local keepOriginals = data.keepOriginals
+
+        if type(layoutIds) ~= "table" or type(newName) ~= "string" then
+            sendImportResult(false, "Merge failed: invalid parameters.")
+            return
+        end
+
+        local success, result = layoutPersist.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
+        if success then
+            -- Deactivate original layouts if they were removed
+            if not keepOriginals then
+                for _, layoutId in ipairs(layoutIds) do
+                    if instanceManager.isLayoutActive(layoutId) then
+                        instanceManager.deactivateLayout(layoutId)
+                    end
+                end
+            end
+
+            -- Automatically activate the merged layout
+            if result and result.id then
+                instanceManager.activateLayout(result.id)
+            end
+
+            M.sendFullUpdate(bolt, state)
+            local name = result and (result.displayName or result.name) or "Merged Layout"
+            local tileCount = result and result.tiles and #result.tiles or 0
+            sendImportResult(true, string.format('Created merged layout "%s" with %d tiles.', name, tileCount))
+        else
+            sendImportResult(false, result or "Merge failed.")
         end
 
     elseif data.action == "toggle_chunk_tile" then

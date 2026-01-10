@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merge Chunk Layouts</title>
+    <link rel="stylesheet" href="css/nis.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .merge-container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .layout-select-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(10, 10, 15, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 16px;
+        }
+        .layout-select-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(40, 40, 50, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .layout-select-item:hover {
+            background: rgba(50, 50, 60, 0.8);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+        .layout-select-item.selected {
+            background: rgba(42, 121, 156, 0.3);
+            border-color: rgba(42, 121, 156, 0.6);
+        }
+        .layout-select-item input[type="checkbox"] {
+            flex-shrink: 0;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            background: rgba(10, 10, 15, 0.75);
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .layout-select-item input[type="checkbox"]:hover {
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(20, 20, 25, 0.85);
+        }
+        .layout-select-item input[type="checkbox"]:checked {
+            background: linear-gradient(180deg, #2a799c, #123443 85%);
+            border-color: #485b65;
+        }
+        .layout-select-item input[type="checkbox"]:checked::after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 1px;
+            width: 4px;
+            height: 8px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+        .layout-select-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .layout-select-name {
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 2px;
+        }
+        .layout-select-meta {
+            font-size: 11px;
+            color: #888;
+        }
+        .merge-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .toggle-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 4px;
+        }
+        .toggle-option .toggle-label-text {
+            flex: 1;
+            margin: 0;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--nis-col-std, #e0e0e0);
+        }
+        .warning-box {
+            background: rgba(255, 200, 0, 0.1);
+            border: 1px solid rgba(255, 200, 0, 0.4);
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 16px;
+            font-size: 12px;
+            color: #fff4d2;
+        }
+        .empty-state-small {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 13px;
+        }
+        .layout-type-badge { background: rgba(156, 121, 42, 0.3); color: #e8c46b; border: 1px solid rgba(156, 121, 42, 0.5); }
+    </style>
+</head>
+<body class="nis gm-ui gm-dialog">
+    <div class="merge-container">
+        <h1>Merge Chunk Layouts</h1>
+        <p class="help-text">
+            This feature combines multiple <span class="layout-type-badge">Chunk</span> layouts into a single layout. Only chunk-type layouts can be merged (instance layouts are excluded).
+        </p>
+
+        <div class="warning-box" id="warning-box" style="display: none;">
+            Please select at least 2 chunk layouts to merge.
+        </div>
+
+        <label for="layout-select-list">Select Chunk Layouts to Merge</label>
+        <div class="layout-select-list" id="layout-select-list">
+            <div class="empty-state-small">Loading chunk layouts...</div>
+        </div>
+
+        <div class="merge-options">
+            <label for="merged-layout-name">New Merged Layout Name</label>
+            <input type="text" id="merged-layout-name" placeholder="Enter name for merged layout" autofocus>
+
+            <div class="toggle-option">
+                <span class="toggle-label-text">Keep original layouts after merging</span>
+                <label class="toggle-switch" for="keep-originals">
+                    <input type="checkbox" id="keep-originals" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="error" id="error-message"></div>
+
+        <div class="button-group">
+            <button class="secondary" id="cancel-button">Cancel</button>
+            <button class="primary" id="merge-button" disabled>Merge Layouts</button>
+        </div>
+    </div>
+
+    <script>
+        const layoutSelectList = document.getElementById('layout-select-list');
+        const mergedLayoutName = document.getElementById('merged-layout-name');
+        const keepOriginalsCheckbox = document.getElementById('keep-originals');
+        const mergeButton = document.getElementById('merge-button');
+        const cancelButton = document.getElementById('cancel-button');
+        const errorMessage = document.getElementById('error-message');
+        const warningBox = document.getElementById('warning-box');
+
+        let chunkLayouts = [];
+        let selectedLayoutIds = new Set();
+
+        // Request chunk layouts data from Lua
+        fetch('https://bolt-api/send-message', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'get_chunk_layouts_for_merge' })
+        }).catch(err => console.error('Failed to request chunk layouts:', err));
+
+        // Listen for messages from Lua
+        window.addEventListener('message', (event) => {
+            let data = event.data;
+
+            // Handle ArrayBuffer from bolt browser
+            if (data && data.type === 'pluginMessage' && data.content instanceof ArrayBuffer) {
+                const decoder = new TextDecoder();
+                const jsonString = decoder.decode(data.content);
+                try {
+                    data = JSON.parse(jsonString);
+                } catch (e) {
+                    console.error('Failed to parse decoded message:', jsonString, e);
+                    return;
+                }
+            }
+
+            // Handle string data
+            if (typeof data === 'string') {
+                try {
+                    data = JSON.parse(data);
+                } catch (e) {
+                    console.error('Failed to parse message:', data, e);
+                    return;
+                }
+            }
+
+            if (data && data.type === 'chunk_layouts_data') {
+                chunkLayouts = data.layouts || [];
+                renderLayoutList();
+            }
+        });
+
+        function renderLayoutList() {
+            if (chunkLayouts.length === 0) {
+                layoutSelectList.innerHTML = '<div class="empty-state-small">No chunk layouts available to merge.</div>';
+                return;
+            }
+
+            layoutSelectList.innerHTML = chunkLayouts.map((layout) => {
+                const tileCount = layout.tiles ? layout.tiles.length : 0;
+                const isSelected = selectedLayoutIds.has(layout.id);
+                return `
+                    <div class="layout-select-item ${isSelected ? 'selected' : ''}" data-layout-id="${layout.id}">
+                        <input type="checkbox" ${isSelected ? 'checked' : ''}>
+                        <div class="layout-select-info">
+                            <div class="layout-select-name">${escapeHtml(layout.displayName || layout.name || 'Layout')}</div>
+                            <div class="layout-select-meta">${tileCount} tile${tileCount !== 1 ? 's' : ''}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            updateMergeButtonState();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateMergeButtonState() {
+            const hasName = mergedLayoutName.value.trim().length > 0;
+            const hasSelection = selectedLayoutIds.size >= 2;
+            mergeButton.disabled = !(hasName && hasSelection);
+
+            if (selectedLayoutIds.size > 0 && selectedLayoutIds.size < 2) {
+                warningBox.style.display = 'block';
+            } else {
+                warningBox.style.display = 'none';
+            }
+        }
+
+        // Handle layout selection
+        layoutSelectList.addEventListener('click', (e) => {
+            const item = e.target.closest('.layout-select-item');
+            if (!item) return;
+
+            const layoutId = item.dataset.layoutId;
+            if (!layoutId) return;
+
+            if (selectedLayoutIds.has(layoutId)) {
+                selectedLayoutIds.delete(layoutId);
+            } else {
+                selectedLayoutIds.add(layoutId);
+            }
+
+            renderLayoutList();
+        });
+
+        // Update button state when name changes
+        mergedLayoutName.addEventListener('input', () => {
+            updateMergeButtonState();
+            errorMessage.classList.remove('visible');
+        });
+
+        // Handle merge
+        mergeButton.addEventListener('click', () => {
+            const name = mergedLayoutName.value.trim();
+            const keepOriginals = keepOriginalsCheckbox.checked;
+
+            if (!name) {
+                errorMessage.textContent = 'Please enter a name for the merged layout.';
+                errorMessage.classList.add('visible');
+                return;
+            }
+
+            if (selectedLayoutIds.size < 2) {
+                errorMessage.textContent = 'Please select at least 2 layouts to merge.';
+                errorMessage.classList.add('visible');
+                return;
+            }
+
+            fetch('https://bolt-api/send-message', {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'merge_layouts',
+                    layoutIds: Array.from(selectedLayoutIds),
+                    name: name,
+                    keepOriginals: keepOriginals
+                })
+            }).catch(err => console.error('Failed to send merge_layouts:', err));
+
+            // Close overlay after sending
+            setTimeout(() => {
+                fetch('https://bolt-api/send-message', {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'close_overlay' })
+                }).catch(err => console.error('Failed to close overlay:', err));
+            }, 100);
+        });
+
+        // Handle cancel
+        cancelButton.addEventListener('click', () => {
+            fetch('https://bolt-api/send-message', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'close_overlay' })
+            }).catch(err => console.error('Failed to close overlay:', err));
+        });
+
+        // Handle Enter key
+        mergedLayoutName.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !mergeButton.disabled) {
+                mergeButton.click();
+            } else if (e.key === 'Escape') {
+                cancelButton.click();
+            }
+        });
+
+        // Handle Escape key globally
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                cancelButton.click();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ const LayoutsModule = (() => {
     const listElement = document.getElementById('layout-list');
     const saveButton = document.getElementById('save-button');
     const importButton = document.getElementById('import-layout-button');
+    const mergeButton = document.getElementById('merge-layout-button');
     const activeLayoutLabel = document.getElementById('active-layout');
     const saveHelp = document.getElementById('save-help');
     const saveTitle = document.getElementById('save-title');
@@ -26,6 +27,10 @@ const LayoutsModule = (() => {
 
         if (importButton) {
             importButton.addEventListener('click', openImportModal);
+        }
+
+        if (mergeButton) {
+            mergeButton.addEventListener('click', openMergeModal);
         }
     }
 
@@ -224,6 +229,11 @@ const LayoutsModule = (() => {
         Socket.sendToLua({ action: 'open_import_overlay' });
     }
 
+    function openMergeModal() {
+        // Open overlay for merging chunk layouts
+        Socket.sendToLua({ action: 'open_merge_overlay' });
+    }
+
     function normalizeImportedTiles(rawTiles) {
         if (!Array.isArray(rawTiles)) {
             return [];
@@ -278,7 +288,8 @@ const LayoutsModule = (() => {
         refreshSaveState,
         handleImportResult,
         saveLayout,
-        openImportModal
+        openImportModal,
+        openMergeModal
     };
 })();
 

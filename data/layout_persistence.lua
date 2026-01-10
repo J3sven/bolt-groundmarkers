@@ -360,4 +360,124 @@ function M.importLayoutFromData(bolt, layoutData)
     return true, layout
 end
 
+-- Get all chunk-type layouts
+function M.getChunkLayouts(bolt)
+    local allLayouts = M.getAllLayouts(bolt)
+    local chunkLayouts = {}
+
+    for _, layout in ipairs(allLayouts) do
+        if layout.layoutType == "chunk" then
+            table.insert(chunkLayouts, layout)
+        end
+    end
+
+    return chunkLayouts
+end
+
+-- Merge multiple chunk layouts into a single layout
+function M.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
+    if type(layoutIds) ~= "table" or #layoutIds < 2 then
+        return false, "Need at least 2 layouts to merge."
+    end
+
+    local layoutsData = M.loadLayouts(bolt)
+
+    -- Collect all layouts to merge
+    local layoutsToMerge = {}
+    for _, layoutId in ipairs(layoutIds) do
+        for _, layout in ipairs(layoutsData.layouts) do
+            if layout.id == layoutId then
+                -- Only allow merging chunk layouts
+                if layout.layoutType ~= "chunk" then
+                    return false, "Only chunk layouts can be merged."
+                end
+                table.insert(layoutsToMerge, layout)
+                break
+            end
+        end
+    end
+
+    if #layoutsToMerge < 2 then
+        return false, "Could not find enough layouts to merge."
+    end
+
+    -- Merge all tiles, using a set to avoid duplicates
+    local mergedTilesMap = {}
+    local mergedTiles = {}
+
+    for _, layout in ipairs(layoutsToMerge) do
+        if type(layout.tiles) == "table" then
+            for _, tile in ipairs(layout.tiles) do
+                -- Create unique key based on chunk coords and local coords
+                local key = string.format("%d_%d_%d_%d_%d",
+                    tile.chunkX or 0,
+                    tile.chunkZ or 0,
+                    tile.localX or 0,
+                    tile.localZ or 0,
+                    tile.worldY or 0
+                )
+
+                -- Only add if not already present (first occurrence wins)
+                if not mergedTilesMap[key] then
+                    mergedTilesMap[key] = true
+                    table.insert(mergedTiles, {
+                        localX = tile.localX,
+                        localZ = tile.localZ,
+                        worldY = tile.worldY,
+                        colorIndex = tile.colorIndex,
+                        chunkX = tile.chunkX,
+                        chunkZ = tile.chunkZ
+                    })
+                end
+            end
+        end
+    end
+
+    if #mergedTiles == 0 then
+        return false, "No tiles found in selected layouts."
+    end
+
+    -- Create the new merged layout
+    local id = "merged_" .. (#layoutsData.layouts + 1) .. "_" .. math.random(1000, 9999)
+    local displayName = sanitizeDisplayName(newName, "Merged Layout") or "Merged Layout"
+    local storageName = sanitizeStoredName(newName, displayName)
+
+    local mergedLayout = {
+        id = id,
+        name = storageName,
+        displayName = displayName,
+        created = #layoutsData.layouts + 1,
+        layoutType = "chunk",
+        tiles = mergedTiles
+    }
+
+    mergedLayout = normalizeLayoutEntry(mergedLayout, #layoutsData.layouts + 1)
+    table.insert(layoutsData.layouts, mergedLayout)
+
+    -- Remove original layouts if requested
+    if not keepOriginals then
+        local newLayoutsList = {}
+        for _, layout in ipairs(layoutsData.layouts) do
+            local shouldRemove = false
+            for _, layoutId in ipairs(layoutIds) do
+                if layout.id == layoutId then
+                    shouldRemove = true
+                    break
+                end
+            end
+            if not shouldRemove then
+                table.insert(newLayoutsList, layout)
+            end
+        end
+        layoutsData.layouts = newLayoutsList
+    end
+
+    local saved = M.saveLayouts(bolt, layoutsData)
+    if not saved then
+        return false, "Failed to save merged layout."
+    end
+
+    return true, mergedLayout
+end
+
 return M
