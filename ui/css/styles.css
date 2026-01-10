@@ -13,7 +13,6 @@ body {
     max-height: 100vh;
     min-height: 100vh;
     height: 100vh;
-    /* Firefox scrollbar */
     scrollbar-width: thin;
 }
 body.nis.gm-ui {
