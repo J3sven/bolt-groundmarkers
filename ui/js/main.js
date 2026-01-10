@@ -124,7 +124,8 @@ import ChunkGrid from './modules/chunk-grid.js';
             State.setState({
                 inInstance: parsedData.inInstance,
                 tempTileCount: parsedData.tempTileCount,
-                activeLayoutId: parsedData.activeLayoutId,
+                nonInstanceTileCount: parsedData.nonInstanceTileCount || 0,
+                activeLayoutIds: parsedData.activeLayoutIds || [],
                 chunkGrid: parsedData.chunkGrid || null,
                 palette: parsedData.palette || [],
                 currentColorIndex: parsedData.currentColorIndex || 1,

@@ -157,48 +157,76 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
       end
     end
 
-    -- 2. Add active layout tiles if in instance
-    if inInstance then
-      local activeLayoutId = instanceManager.getActiveLayoutId()
+    -- 2. Add active layout tiles (can have multiple active layouts)
+    local activeLayoutIds = instanceManager.getActiveLayoutIds()
+    local layoutPersist = require("data.layout_persistence")
 
-      if activeLayoutId then
-        local layoutPersist = require("data.layout_persistence")
-        local layout = layoutPersist.getLayout(bolt, activeLayoutId)
+    for _, activeLayoutId in ipairs(activeLayoutIds) do
+      local layout = layoutPersist.getLayout(bolt, activeLayoutId)
 
-        if layout and layout.tiles then
-          -- Transform layout tiles to current chunk position
-          for _, layoutTile in ipairs(layout.tiles) do
-            local localX = layoutTile.localX
-            local localZ = layoutTile.localZ
+      if layout and layout.tiles then
+        for _, layoutTile in ipairs(layout.tiles) do
+          local localX = layoutTile.localX
+          local localZ = layoutTile.localZ
 
-            -- Convert to world coordinates using current player chunk
-            local newTileX = playerChunkX * 64 + localX
-            local newTileZ = playerChunkZ * 64 + localZ
-            local newWorldX, newWorldZ = coords.tileToWorldCoords(newTileX, newTileZ)
+          -- Check if this is a chunk layout using the layoutType property
+          local isChunkLayout = layout.layoutType == "chunk"
 
-            local transformedTile = {
-              x = newWorldX,
-              z = newWorldZ,
-              y = layoutTile.worldY,
-              colorIndex = layoutTile.colorIndex,
-              chunkX = playerChunkX,
-              chunkZ = playerChunkZ,
-              localX = localX,
-              localZ = localZ,
-              floor = 0
-            }
+          if isChunkLayout then
+            -- Chunk layout: only render if player is in the same chunk and tile has chunk coords
+            if not inInstance and layoutTile.chunkX == playerChunkX and layoutTile.chunkZ == playerChunkZ then
+              -- Convert to world coordinates using the layout's chunk
+              local tileX = layoutTile.chunkX * 64 + localX
+              local tileZ = layoutTile.chunkZ * 64 + localZ
+              local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
 
-            table.insert(tilesToRender, transformedTile)
+              local transformedTile = {
+                x = worldX,
+                z = worldZ,
+                y = layoutTile.worldY,
+                colorIndex = layoutTile.colorIndex,
+                chunkX = layoutTile.chunkX,
+                chunkZ = layoutTile.chunkZ,
+                localX = localX,
+                localZ = localZ,
+                floor = 0
+              }
+
+              table.insert(tilesToRender, transformedTile)
+            end
+          else
+            -- Instance layout: render in all instances
+            if inInstance then
+              -- Convert to world coordinates using current player chunk
+              local newTileX = playerChunkX * 64 + localX
+              local newTileZ = playerChunkZ * 64 + localZ
+              local newWorldX, newWorldZ = coords.tileToWorldCoords(newTileX, newTileZ)
+
+              local transformedTile = {
+                x = newWorldX,
+                z = newWorldZ,
+                y = layoutTile.worldY,
+                colorIndex = layoutTile.colorIndex,
+                chunkX = playerChunkX,
+                chunkZ = playerChunkZ,
+                localX = localX,
+                localZ = localZ,
+                floor = 0
+              }
+
+              table.insert(tilesToRender, transformedTile)
+            end
           end
         end
       end
+    end
 
-      -- 3. Add temporary instance tiles (overlaid on layout)
+    -- 3. Add temporary instance tiles (overlaid on layout)
+    if inInstance then
       local tempTiles = instanceManager.getInstanceTiles()
       for _, t in pairs(tempTiles) do
         table.insert(tilesToRender, t)
       end
-
     end
 
     local hoverTile = instanceManager.getHoverTile()

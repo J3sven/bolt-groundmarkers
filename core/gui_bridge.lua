@@ -226,6 +226,56 @@ function M.toggle(bolt, state)
     end
 end
 
+-- Count non-instance marked tiles in the current chunk that are not in any saved layout
+local function countNonInstanceUnsavedTiles(state, bolt)
+    local instanceManager = require("core.instance_manager")
+    local chunkSnapshot = instanceManager.getChunkSnapshot()
+
+    if not chunkSnapshot then
+        return 0
+    end
+
+    local markedTiles = state.getMarkedTiles()
+    local layoutPersist = require("data.layout_persistence")
+    local layouts = layoutPersist.getAllLayouts(bolt)
+
+    -- Create a set of all tiles in saved layouts
+    local savedTileKeys = {}
+    for _, layout in ipairs(layouts) do
+        if layout.tiles then
+            for _, tile in ipairs(layout.tiles) do
+                -- Create a key based on chunk coords and local coords
+                local key = string.format("%d_%d_%d_%d",
+                    tile.chunkX or 0,
+                    tile.chunkZ or 0,
+                    tile.localX or 0,
+                    tile.localZ or 0
+                )
+                savedTileKeys[key] = true
+            end
+        end
+    end
+
+    -- Count tiles in the current chunk that are not in any saved layout
+    local count = 0
+    for _, tile in pairs(markedTiles) do
+        -- Only count tiles in the current chunk
+        if tile.chunkX == chunkSnapshot.chunkX and tile.chunkZ == chunkSnapshot.chunkZ then
+            local key = string.format("%d_%d_%d_%d",
+                tile.chunkX or 0,
+                tile.chunkZ or 0,
+                tile.localX or 0,
+                tile.localZ or 0
+            )
+            if not savedTileKeys[key] then
+                count = count + 1
+            end
+        end
+    end
+
+    return count
+end
+
 -- Send state update to GUI
 function M.sendStateUpdate(state, bolt)
     if not isOpen then
@@ -272,11 +322,18 @@ function M.sendStateUpdate(state, bolt)
     local palette = colors.getPaletteForUI()
     local currentColorIndex = state.getCurrentColorIndex and state.getCurrentColorIndex() or 1
 
+    -- Calculate non-instance unsaved tile count
+    local nonInstanceTileCount = 0
+    if not managerState.inInstance then
+        nonInstanceTileCount = countNonInstanceUnsavedTiles(state, bolt)
+    end
+
     local message = {
         type = "state_update",
         inInstance = managerState.inInstance,
         tempTileCount = managerState.tempTileCount,
-        activeLayoutId = managerState.currentLayoutId,
+        nonInstanceTileCount = nonInstanceTileCount,
+        activeLayoutIds = managerState.activeLayoutIds or {},
         chunkGrid = chunkGrid,
         palette = palette,
         currentColorIndex = currentColorIndex
@@ -344,6 +401,11 @@ function M.handleBrowserMessage(bolt, state, data)
         local tempCount = instanceManager.getInstanceTileCount()
         M.openOverlay(bolt, state, string.format("plugin://ui/save-layout.html?tempCount=%d", tempCount))
 
+    elseif data.action == "open_save_chunk_overlay" then
+        -- Open overlay for saving a chunk layout
+        local nonInstanceCount = countNonInstanceUnsavedTiles(state, bolt)
+        M.openOverlay(bolt, state, string.format("plugin://ui/save-chunk-layout.html?tempCount=%d", nonInstanceCount))
+
     elseif data.action == "open_import_overlay" then
         -- Open overlay for importing a layout
         M.openOverlay(bolt, state, "plugin://ui/import-layout.html")
@@ -390,13 +452,85 @@ function M.handleBrowserMessage(bolt, state, data)
         end
 
         local tempTiles = instanceManager.getInstanceTiles()
-        local layoutId = layoutPersist.createLayout(bolt, data.name, tempTiles)
+        local layoutId = layoutPersist.createLayout(bolt, data.name, tempTiles, "instance")
+
+        -- Automatically activate the newly saved layout
+        instanceManager.activateLayout(layoutId)
 
         -- Clear temporary tiles after saving
         instanceManager.clearInstanceTiles()
 
         -- Send updates
         M.sendFullUpdate(bolt, state)
+
+    elseif data.action == "save_chunk_layout" then
+        -- Save non-instance marked tiles in the current chunk as a chunk layout
+        if instanceManager.isInInstance() then
+            return
+        end
+
+        local chunkSnapshot = instanceManager.getChunkSnapshot()
+        if not chunkSnapshot then
+            return
+        end
+
+        -- Get non-instance marked tiles in the current chunk that aren't in saved layouts
+        local markedTiles = state.getMarkedTiles()
+        local layouts = layoutPersist.getAllLayouts(bolt)
+
+        -- Create a set of all tiles in saved layouts
+        local savedTileKeys = {}
+        for _, layout in ipairs(layouts) do
+            if layout.tiles then
+                for _, tile in ipairs(layout.tiles) do
+                    local key = string.format("%d_%d_%d_%d",
+                        tile.chunkX or 0,
+                        tile.chunkZ or 0,
+                        tile.localX or 0,
+                        tile.localZ or 0
+                    )
+                    savedTileKeys[key] = true
+                end
+            end
+        end
+
+        -- Collect unsaved tiles in the current chunk only
+        local unsavedTiles = {}
+        local tilesToRemove = {}
+        for tileKey, tile in pairs(markedTiles) do
+            -- Only include tiles in the current chunk
+            if tile.chunkX == chunkSnapshot.chunkX and tile.chunkZ == chunkSnapshot.chunkZ then
+                local key = string.format("%d_%d_%d_%d",
+                    tile.chunkX or 0,
+                    tile.chunkZ or 0,
+                    tile.localX or 0,
+                    tile.localZ or 0
+                )
+                if not savedTileKeys[key] then
+                    table.insert(unsavedTiles, tile)
+                    table.insert(tilesToRemove, tileKey)
+                end
+            end
+        end
+
+        -- Save the chunk layout and remove the saved tiles from marked tiles
+        if #unsavedTiles > 0 then
+            local layoutId = layoutPersist.createLayout(bolt, data.name, unsavedTiles, "chunk")
+
+            -- Automatically activate the newly saved layout
+            instanceManager.activateLayout(layoutId)
+
+            -- Remove saved tiles from the marked tiles
+            for _, tileKey in ipairs(tilesToRemove) do
+                markedTiles[tileKey] = nil
+            end
+
+            -- Save the updated marked tiles
+            local persistence = require("data.persistence")
+            persistence.saveMarkers(state, bolt)
+
+            M.sendFullUpdate(bolt, state)
+        end
 
     elseif data.action == "activate_layout" then
         local layoutId = data.layoutId
@@ -409,22 +543,24 @@ function M.handleBrowserMessage(bolt, state, data)
             return
         end
 
-        if instanceManager.setActiveLayout(layoutId) then
+        if instanceManager.activateLayout(layoutId) then
             M.sendStateUpdate(state, bolt)
         end
 
     elseif data.action == "deactivate_layout" then
-        -- Deactivate current layout
-        instanceManager.clearActiveLayout()
+        local layoutId = data.layoutId
+        if layoutId and layoutId ~= "" then
+            instanceManager.deactivateLayout(layoutId)
+        end
         M.sendStateUpdate(state, bolt)
 
     elseif data.action == "delete_layout" then
         -- Delete a layout
         layoutPersist.deleteLayout(bolt, data.layoutId)
 
-        -- If this was the active layout, deactivate it
-        if instanceManager.getActiveLayoutId() == data.layoutId then
-            instanceManager.clearActiveLayout()
+        -- If this was active, deactivate it
+        if instanceManager.isLayoutActive(data.layoutId) then
+            instanceManager.deactivateLayout(data.layoutId)
         end
 
         M.sendFullUpdate(bolt, state)
@@ -438,6 +574,11 @@ function M.handleBrowserMessage(bolt, state, data)
 
         local success, result = layoutPersist.importLayoutFromData(bolt, layoutData)
         if success then
+            -- Automatically activate the imported layout
+            if result and result.id then
+                instanceManager.activateLayout(result.id)
+            end
+
             M.sendFullUpdate(bolt, state)
             local name = result and (result.displayName or result.name) or "Imported Layout"
             sendImportResult(true, string.format('Imported layout "%s".', name))

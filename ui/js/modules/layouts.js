@@ -12,6 +12,7 @@ const LayoutsModule = (() => {
     const importButton = document.getElementById('import-layout-button');
     const activeLayoutLabel = document.getElementById('active-layout');
     const saveHelp = document.getElementById('save-help');
+    const saveTitle = document.getElementById('save-title');
 
     function init() {
         if (listElement) {
@@ -20,7 +21,7 @@ const LayoutsModule = (() => {
         }
 
         if (saveButton) {
-            saveButton.addEventListener('click', saveLayout);
+            saveButton.addEventListener('click', handleSaveClick);
         }
 
         if (importButton) {
@@ -35,15 +36,46 @@ const LayoutsModule = (() => {
 
         const state = State.getState();
 
-        if (!state.inInstance) {
-            saveHelp.textContent = 'Enter an instance and mark some tiles to save a layout.';
-        } else if (state.tempTileCount === 0) {
-            saveHelp.textContent = 'Mark some tiles (Alt+MiddleClick) before saving.';
-        } else {
-            saveHelp.textContent = `You have ${state.tempTileCount} temporary tile(s) ready to save.`;
-        }
+        // Update based on whether in instance or not
+        if (state.inInstance) {
+            // Instance mode
+            if (saveTitle) {
+                saveTitle.textContent = 'Save Instance Layout';
+            }
 
-        saveButton.disabled = !state.inInstance || state.tempTileCount === 0;
+            if (state.tempTileCount === 0) {
+                saveHelp.textContent = 'Mark some tiles (Alt+MiddleClick) before saving.';
+            } else {
+                saveHelp.textContent = `You have ${state.tempTileCount} temporary tile(s) ready to save.`;
+            }
+
+            saveButton.disabled = state.tempTileCount === 0;
+        } else {
+            // Non-instance mode
+            if (saveTitle) {
+                saveTitle.textContent = 'Save Chunk Layout';
+            }
+
+            const nonInstanceTileCount = state.nonInstanceTileCount || 0;
+
+            if (nonInstanceTileCount === 0) {
+                saveHelp.textContent = 'Mark some tiles (Alt+MiddleClick) to save as a chunk layout.';
+            } else {
+                saveHelp.textContent = `You have ${nonInstanceTileCount} unsaved tile(s) ready to save.`;
+            }
+
+            saveButton.disabled = nonInstanceTileCount === 0;
+        }
+    }
+
+    function handleSaveClick() {
+        const state = State.getState();
+
+        if (state.inInstance) {
+            saveLayout();
+        } else {
+            saveChunkLayout();
+        }
     }
 
     function saveLayout() {
@@ -62,13 +94,28 @@ const LayoutsModule = (() => {
         Socket.sendToLua({ action: 'open_save_overlay' });
     }
 
+    function saveChunkLayout() {
+        const state = State.getState();
+        if (state.inInstance) {
+            Notifications.showNotification('Exit the instance before saving chunk layouts.', 'warning');
+            return;
+        }
+
+        const nonInstanceTileCount = state.nonInstanceTileCount || 0;
+        if (nonInstanceTileCount === 0) {
+            Notifications.showNotification('Mark some tiles before saving.', 'warning');
+            return;
+        }
+
+        // Open overlay for text input
+        Socket.sendToLua({ action: 'open_save_chunk_overlay' });
+    }
+
     function renderLayouts() {
         const state = State.getState();
         if (activeLayoutLabel) {
-            const activeLayout = state.layouts.find((layout) => layout.id === state.activeLayoutId);
-            activeLayoutLabel.textContent = activeLayout
-                ? (activeLayout.displayName || activeLayout.name || 'Layout')
-                : 'None';
+            const activeCount = (state.activeLayoutIds || []).length;
+            activeLayoutLabel.textContent = activeCount > 0 ? `${activeCount} active` : 'None';
         }
 
         if (!listElement) {
@@ -86,24 +133,30 @@ const LayoutsModule = (() => {
         }
 
         listElement.innerHTML = state.layouts.map((layout) => {
-            const isActive = layout.id === state.activeLayoutId;
+            const isActive = (state.activeLayoutIds || []).includes(layout.id);
             const tileCount = layout.tiles ? layout.tiles.length : 0;
             const displayName = escapeHtml(layout.displayName || layout.name || 'Layout');
 
+            // Determine layout type from the layoutType property
+            const isChunkLayout = layout.layoutType === 'chunk';
+            const layoutTypeLabel = isChunkLayout ? 'Chunk' : 'Instance';
+            const layoutTypeClass = isChunkLayout ? 'layout-type-chunk' : 'layout-type-instance';
+
             return `
-                <div class="layout-item ${isActive ? 'active' : ''}" data-id="${layout.id}">
+                <div class="layout-item ${isActive ? 'active' : ''} ${layoutTypeClass}" data-id="${layout.id}">
                     <div class="layout-header">
                         <div class="layout-meta">
-                            <div class="layout-name">${displayName}</div>
                             <div class="layout-info">
-                                ${tileCount} tile${tileCount !== 1 ? 's' : ''}
+                                <span class="layout-type-badge">${layoutTypeLabel}</span> ${tileCount} tile${tileCount !== 1 ? 's' : ''}
+                            </div>
+                            <div class="layout-name">
+                                ${displayName}
                             </div>
                         </div>
                         <div class="layout-controls">
                             <label class="toggle-switch">
                                 <input type="checkbox" data-layout-id="${layout.id}" ${isActive ? 'checked' : ''}>
                                 <span class="toggle-track"></span>
-                                <span class="toggle-label">${isActive ? 'Active' : 'Inactive'}</span>
                             </label>
                             <button type="button" class="icon-button" data-action="export" data-layout-id="${layout.id}" title="Copy layout JSON" aria-label="Copy layout JSON">
                                 <img src="svg/copy.svg" alt="">
@@ -135,11 +188,10 @@ const LayoutsModule = (() => {
                 layoutId
             });
         } else {
-            if (State.getState().activeLayoutId === layoutId) {
-                Socket.sendToLua({ action: 'deactivate_layout' });
-            } else {
-                checkbox.checked = true;
-            }
+            Socket.sendToLua({
+                action: 'deactivate_layout',
+                layoutId
+            });
         }
     }
 

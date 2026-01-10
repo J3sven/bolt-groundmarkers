@@ -2,13 +2,13 @@
 local M = {}
 local colors = require("core.colors")
 local HEIGHT_STEP = 25
-local ACTIVE_LAYOUT_FILE = "active_layout.txt"
+local ACTIVE_LAYOUTS_FILE = "active_layouts.json"
 local boltRef = nil
 
 -- Internal state
 local state = {
     inInstance = false,
-    currentLayoutId = nil,  -- User-selected active layout
+    activeLayoutIds = {},   -- Array of active layout IDs (can have multiple)
     instanceTiles = {},     -- Temporary tiles marked while in instance (before saving)
     currentChunkX = nil,
     currentChunkZ = nil,
@@ -20,7 +20,7 @@ local state = {
 }
 
 -- Check if player is in an instance based on chunk coordinates
-local function isInInstanceChunk(chunkX, chunkZ)
+local function isInInstanceChunk(chunkX)
     return chunkX > 100 or chunkX < -100
 end
 
@@ -36,26 +36,37 @@ local function trimString(value)
     return trimmed
 end
 
-local function persistActiveLayout()
+local function persistActiveLayouts()
     if not boltRef then
         return
     end
-    local payload = state.currentLayoutId or ""
-    boltRef.saveconfig(ACTIVE_LAYOUT_FILE, payload)
+    local json = require("core.simplejson")
+    local payload = json.encode(state.activeLayoutIds or {})
+    if payload then
+        boltRef.saveconfig(ACTIVE_LAYOUTS_FILE, payload)
+    end
 end
 
-local function loadActiveLayout()
+local function loadActiveLayouts()
     if not boltRef then
-        return nil
+        return {}
     end
-    local saved = boltRef.loadconfig(ACTIVE_LAYOUT_FILE)
-    return trimString(saved)
+    local saved = boltRef.loadconfig(ACTIVE_LAYOUTS_FILE)
+    if not saved or saved == "" then
+        return {}
+    end
+    local json = require("core.simplejson")
+    local decoded = json.decode(saved)
+    if type(decoded) == "table" then
+        return decoded
+    end
+    return {}
 end
 
 function M.init(bolt)
     boltRef = bolt
     state.inInstance = false
-    state.currentLayoutId = loadActiveLayout()
+    state.activeLayoutIds = loadActiveLayouts()
     state.instanceTiles = {}
     return true
 end
@@ -71,7 +82,7 @@ function M.update(bolt)
     local floor, chunkX, chunkZ, localX, localZ = coords.tileToRS(tileX, tileZ, py)
 
     local wasInInstance = state.inInstance
-    state.inInstance = isInInstanceChunk(chunkX, chunkZ)
+    state.inInstance = isInInstanceChunk(chunkX)
 
     local chunkChanged = state.currentChunkX ~= chunkX or state.currentChunkZ ~= chunkZ
     state.currentChunkX = chunkX
@@ -104,26 +115,53 @@ function M.isInInstance()
     return state.inInstance
 end
 
--- Get the currently active layout ID (user-selected)
-function M.getActiveLayoutId()
-    return state.currentLayoutId
+-- Get all active layout IDs
+function M.getActiveLayoutIds()
+    return state.activeLayoutIds or {}
 end
 
--- Set the active layout (called from GUI)
-function M.setActiveLayout(layoutId)
+-- Check if a specific layout is active
+function M.isLayoutActive(layoutId)
+    for _, id in ipairs(state.activeLayoutIds) do
+        if id == layoutId then
+            return true
+        end
+    end
+    return false
+end
+
+-- Activate a layout (add to active list)
+function M.activateLayout(layoutId)
     if type(layoutId) ~= "string" or layoutId == "" then
         return false
     end
 
-    state.currentLayoutId = layoutId
-    persistActiveLayout()
+    -- Check if already active
+    if M.isLayoutActive(layoutId) then
+        return true
+    end
+
+    table.insert(state.activeLayoutIds, layoutId)
+    persistActiveLayouts()
     return true
 end
 
--- Clear the active layout
-function M.clearActiveLayout()
-    state.currentLayoutId = nil
-    persistActiveLayout()
+-- Deactivate a layout (remove from active list)
+function M.deactivateLayout(layoutId)
+    for i, id in ipairs(state.activeLayoutIds) do
+        if id == layoutId then
+            table.remove(state.activeLayoutIds, i)
+            persistActiveLayouts()
+            return true
+        end
+    end
+    return false
+end
+
+-- Clear all active layouts
+function M.clearActiveLayouts()
+    state.activeLayoutIds = {}
+    persistActiveLayouts()
 end
 
 -- Add a tile to the temporary instance buffer
@@ -161,7 +199,7 @@ end
 function M.getState()
     return {
         inInstance = state.inInstance,
-        currentLayoutId = state.currentLayoutId,
+        activeLayoutIds = state.activeLayoutIds,
         tempTileCount = M.getInstanceTileCount()
     }
 end

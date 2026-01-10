@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Save Chunk Layout</title>
+    <link rel="stylesheet" href="css/nis.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="nis gm-ui gm-dialog">
+    <div class="container">
+        <h1>Save Chunk Layout</h1>
+        <p class="help-text" id="help-text">Save your non-instance tiles as a named layout.</p>
+
+        <label for="layout-name">Layout Name</label>
+        <input type="text" id="layout-name" placeholder="Enter layout name (e.g., 'Farming Run', 'Clue Tiles')" autofocus>
+
+        <div class="button-group">
+            <button class="secondary" id="cancel-button">Cancel</button>
+            <button class="primary" id="save-button" disabled>Save Chunk Layout</button>
+        </div>
+    </div>
+
+    <script>
+        const layoutNameInput = document.getElementById('layout-name');
+        const saveButton = document.getElementById('save-button');
+        const cancelButton = document.getElementById('cancel-button');
+        const helpText = document.getElementById('help-text');
+
+        // Get temp count from URL params
+        const params = new URLSearchParams(window.location.search);
+        const tempCount = params.get('tempCount') || '0';
+        helpText.textContent = `You have ${tempCount} unsaved tile(s) ready to save.`;
+
+        // Enable/disable save button based on input
+        layoutNameInput.addEventListener('input', () => {
+            saveButton.disabled = layoutNameInput.value.trim().length === 0;
+        });
+
+        // Handle save
+        saveButton.addEventListener('click', () => {
+            const name = layoutNameInput.value.trim();
+            if (name) {
+                fetch('https://bolt-api/send-message', {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'save_chunk_layout', name: name })
+                }).catch(err => console.error('Failed to send save_chunk_layout:', err));
+
+                // Close overlay after sending
+                setTimeout(() => {
+                    fetch('https://bolt-api/send-message', {
+                        method: 'POST',
+                        body: JSON.stringify({ action: 'close_overlay' })
+                    }).catch(err => console.error('Failed to close overlay:', err));
+                }, 100);
+            }
+        });
+
+        // Handle cancel
+        cancelButton.addEventListener('click', () => {
+            fetch('https://bolt-api/send-message', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'close_overlay' })
+            }).catch(err => console.error('Failed to close overlay:', err));
+        });
+
+        // Handle Enter key
+        layoutNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !saveButton.disabled) {
+                saveButton.click();
+            } else if (e.key === 'Escape') {
+                cancelButton.click();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -4,7 +4,8 @@ const StateModule = (() => {
     const currentState = {
         inInstance: false,
         tempTileCount: 0,
-        activeLayoutId: null,
+        nonInstanceTileCount: 0,
+        activeLayoutIds: [],
         layouts: [],
         chunkGrid: null,
         palette: [],

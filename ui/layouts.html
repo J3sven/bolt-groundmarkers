@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="nis gm-ui">
+    <!-- Fixed border container -->
+    <div class="nisborder-fixed"></div>
+
     <!-- Resize handles -->
     <div class="resize-handle top" data-resize="top"></div>
     <div class="resize-handle bottom" data-resize="bottom"></div>
@@ -47,9 +50,9 @@
 
         <div id="view-layouts" class="view-panel active">
             <div class="section" id="save-section">
-                <div class="section-title">Save Current Instance Tiles</div>
+                <div class="section-title" id="save-title">Save Current Tiles</div>
                 <p class="help-text" id="save-help">
-                    Mark tiles in an instance, then save them as a named layout here.
+                    Mark tiles, then save them as a named layout here.
                 </p>
                 <div class="save-layout">
                     <button id="save-button" disabled>Save Layout</button>

@@ -54,12 +54,22 @@ local function normalizeTile(tile)
         colorIndex = 1
     end
 
-    return {
+    local normalized = {
         localX = localX,
         localZ = localZ,
         worldY = worldY,
         colorIndex = colorIndex
     }
+
+    -- Preserve chunk coordinates if present (for non-instance chunk layouts)
+    if tile.chunkX then
+        normalized.chunkX = tonumber(tile.chunkX)
+    end
+    if tile.chunkZ then
+        normalized.chunkZ = tonumber(tile.chunkZ)
+    end
+
+    return normalized
 end
 
 local function normalizeLayoutEntry(layout, fallbackIndex)
@@ -71,6 +81,21 @@ local function normalizeLayoutEntry(layout, fallbackIndex)
     layout.name = sanitizeStoredName(layout.name, layout.displayName or layout.id)
     layout.displayName = sanitizeDisplayName(layout.displayName, layout.name) or layout.name
     layout.created = tonumber(layout.created) or fallbackIndex or 0
+
+    -- Preserve layoutType if it exists, otherwise detect it from tiles
+    if not layout.layoutType then
+        -- Detect based on chunk coordinates - chunk layouts have chunkX/chunkZ, instance layouts don't
+        local hasChunkCoords = false
+        if type(layout.tiles) == "table" and #layout.tiles > 0 then
+            for _, tile in ipairs(layout.tiles) do
+                if tile.chunkX ~= nil and tile.chunkZ ~= nil then
+                    hasChunkCoords = true
+                    break
+                end
+            end
+        end
+        layout.layoutType = hasChunkCoords and "chunk" or "instance"
+    end
 
     local normalizedTiles = {}
     if type(layout.tiles) == "table" then
@@ -202,7 +227,8 @@ function M.saveLayouts(bolt, layoutsData)
 end
 
 -- Create a new layout from current instance tiles
-function M.createLayout(bolt, name, instanceTiles)
+-- layoutType should be "instance" or "chunk"
+function M.createLayout(bolt, name, instanceTiles, layoutType)
     local layoutsData = M.loadLayouts(bolt)
 
     local id = "layout_" .. (#layoutsData.layouts + 1) .. "_" .. math.random(1000, 9999)
@@ -221,6 +247,7 @@ function M.createLayout(bolt, name, instanceTiles)
         name = sanitizeStoredName(name, id),
         displayName = sanitizeDisplayName(name, id) or sanitizeStoredName(name, id),
         created = #layoutsData.layouts + 1,
+        layoutType = layoutType or "instance",
         tiles = tiles
     }
 
