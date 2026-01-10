@@ -134,24 +134,25 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     local px, py, pz = playerPos:get()
     local coords = state.getCoords()
-    local tileX, tileZ = coords.worldToTileCoords(px, pz)
-    local _, playerChunkX, playerChunkZ = coords.tileToRS(tileX, tileZ, py)
+    local playerTileX, playerTileZ = coords.worldToTileCoords(px, pz)
+    local _, playerChunkX, playerChunkZ, playerLocalX, playerLocalZ = coords.tileToRS(playerTileX, playerTileZ, py)
 
     local vx, vy, vw, vh = bolt.gameviewxywh()
 
     local instanceManager = require("core.instance_manager")
     local inInstance = instanceManager.isInInstance()
-
-    -- Collect all tiles to render
     local tilesToRender = {}
 
-    -- 1. Add regular (non-instance) markers if not in instance
     if not inInstance then
       local marked = state.getMarkedTiles()
       for _, t in pairs(marked) do
-        local dx = math.abs(t.chunkX - playerChunkX)
-        local dz = math.abs(t.chunkZ - playerChunkZ)
-        if dx <= 1 and dz <= 1 then
+        local markerTileX = t.chunkX * 64 + t.localX
+        local markerTileZ = t.chunkZ * 64 + t.localZ
+
+        local tileDx = math.abs(markerTileX - playerTileX)
+        local tileDz = math.abs(markerTileZ - playerTileZ)
+
+        if tileDx <= 64 and tileDz <= 64 then
           table.insert(tilesToRender, t)
         end
       end
@@ -168,36 +169,35 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
         for _, layoutTile in ipairs(layout.tiles) do
           local localX = layoutTile.localX
           local localZ = layoutTile.localZ
-
-          -- Check if this is a chunk layout using the layoutType property
           local isChunkLayout = layout.layoutType == "chunk"
 
           if isChunkLayout then
-            -- Chunk layout: only render if player is in the same chunk and tile has chunk coords
-            if not inInstance and layoutTile.chunkX == playerChunkX and layoutTile.chunkZ == playerChunkZ then
-              -- Convert to world coordinates using the layout's chunk
-              local tileX = layoutTile.chunkX * 64 + localX
-              local tileZ = layoutTile.chunkZ * 64 + localZ
-              local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+            if not inInstance and layoutTile.chunkX ~= nil and layoutTile.chunkZ ~= nil then
+              local layoutTileX = layoutTile.chunkX * 64 + localX
+              local layoutTileZ = layoutTile.chunkZ * 64 + localZ
+              local tileDx = math.abs(layoutTileX - playerTileX)
+              local tileDz = math.abs(layoutTileZ - playerTileZ)
 
-              local transformedTile = {
-                x = worldX,
-                z = worldZ,
-                y = layoutTile.worldY,
-                colorIndex = layoutTile.colorIndex,
-                chunkX = layoutTile.chunkX,
-                chunkZ = layoutTile.chunkZ,
-                localX = localX,
-                localZ = localZ,
-                floor = 0
-              }
+              if tileDx <= 64 and tileDz <= 64 then
+                local worldX, worldZ = coords.tileToWorldCoords(layoutTileX, layoutTileZ)
 
-              table.insert(tilesToRender, transformedTile)
+                local transformedTile = {
+                  x = worldX,
+                  z = worldZ,
+                  y = layoutTile.worldY,
+                  colorIndex = layoutTile.colorIndex,
+                  chunkX = layoutTile.chunkX,
+                  chunkZ = layoutTile.chunkZ,
+                  localX = localX,
+                  localZ = localZ,
+                  floor = 0
+                }
+
+                table.insert(tilesToRender, transformedTile)
+              end
             end
           else
-            -- Instance layout: render in all instances
             if inInstance then
-              -- Convert to world coordinates using current player chunk
               local newTileX = playerChunkX * 64 + localX
               local newTileZ = playerChunkZ * 64 + localZ
               local newWorldX, newWorldZ = coords.tileToWorldCoords(newTileX, newTileZ)
@@ -221,7 +221,6 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
       end
     end
 
-    -- 3. Add temporary instance tiles (overlaid on layout)
     if inInstance then
       local tempTiles = instanceManager.getInstanceTiles()
       for _, t in pairs(tempTiles) do
@@ -236,7 +235,6 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     if #tilesToRender == 0 then return end
 
-    -- Group by color and render (supporting preview tiles)
     local groups = {}
     for _, t in ipairs(tilesToRender) do
       local key

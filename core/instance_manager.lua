@@ -1,15 +1,13 @@
--- core/instance_manager.lua - Simplified instance management with user control
 local M = {}
 local colors = require("core.colors")
 local HEIGHT_STEP = 25
 local ACTIVE_LAYOUTS_FILE = "active_layouts.json"
 local boltRef = nil
 
--- Internal state
 local state = {
     inInstance = false,
-    activeLayoutIds = {},   -- Array of active layout IDs (can have multiple)
-    instanceTiles = {},     -- Temporary tiles marked while in instance (before saving)
+    activeLayoutIds = {},
+    instanceTiles = {},
     currentChunkX = nil,
     currentChunkZ = nil,
     playerLocalX = nil,
@@ -19,12 +17,10 @@ local state = {
     hoverPreview = nil,
 }
 
--- Check if player is in an instance based on chunk coordinates
 local function isInInstanceChunk(chunkX)
     return chunkX > 100 or chunkX < -100
 end
 
--- Initialize the instance manager
 local function trimString(value)
     if type(value) ~= "string" then
         return nil
@@ -71,7 +67,6 @@ function M.init(bolt)
     return true
 end
 
--- Update instance state based on player position
 function M.update(bolt)
     local playerPos = bolt.playerposition()
     if not playerPos then return end
@@ -96,31 +91,25 @@ function M.update(bolt)
         state.hoverPreview = nil
     end
 
-    -- Entering instance
     if state.inInstance and not wasInInstance then
         state.instanceTiles = {}
         state.hoverPreview = nil
     end
 
-    -- Leaving instance
     if not state.inInstance and wasInInstance then
-        -- Clear temporary tiles when leaving instance
         state.instanceTiles = {}
         state.hoverPreview = nil
     end
 end
 
--- Check if player is currently in an instance
 function M.isInInstance()
     return state.inInstance
 end
 
--- Get all active layout IDs
 function M.getActiveLayoutIds()
     return state.activeLayoutIds or {}
 end
 
--- Check if a specific layout is active
 function M.isLayoutActive(layoutId)
     for _, id in ipairs(state.activeLayoutIds) do
         if id == layoutId then
@@ -130,13 +119,11 @@ function M.isLayoutActive(layoutId)
     return false
 end
 
--- Activate a layout (add to active list)
 function M.activateLayout(layoutId)
     if type(layoutId) ~= "string" or layoutId == "" then
         return false
     end
 
-    -- Check if already active
     if M.isLayoutActive(layoutId) then
         return true
     end
@@ -146,7 +133,6 @@ function M.activateLayout(layoutId)
     return true
 end
 
--- Deactivate a layout (remove from active list)
 function M.deactivateLayout(layoutId)
     for i, id in ipairs(state.activeLayoutIds) do
         if id == layoutId then
@@ -158,35 +144,29 @@ function M.deactivateLayout(layoutId)
     return false
 end
 
--- Clear all active layouts
 function M.clearActiveLayouts()
     state.activeLayoutIds = {}
     persistActiveLayouts()
 end
 
--- Add a tile to the temporary instance buffer
 function M.addInstanceTile(tileData)
     local coords = require("core.coords")
     local key = coords.tileKey(tileData.x, tileData.z)
     state.instanceTiles[key] = tileData
 end
 
--- Remove a tile from the temporary instance buffer
 function M.removeInstanceTile(key)
     state.instanceTiles[key] = nil
 end
 
--- Get all temporary instance tiles (not yet saved to a layout)
 function M.getInstanceTiles()
     return state.instanceTiles
 end
 
--- Clear all temporary instance tiles
 function M.clearInstanceTiles()
     state.instanceTiles = {}
 end
 
--- Count temporary instance tiles
 function M.getInstanceTileCount()
     local count = 0
     for _ in pairs(state.instanceTiles) do
@@ -195,7 +175,6 @@ function M.getInstanceTileCount()
     return count
 end
 
--- Get state for debugging
 function M.getState()
     return {
         inInstance = state.inInstance,

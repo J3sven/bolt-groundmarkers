@@ -19,7 +19,6 @@ function M.toggleTileMarker(state, bolt)
     local inInstance = instanceManager.isInInstance()
 
     if inInstance then
-        -- Handle instance tiles separately
         local tempTiles = instanceManager.getInstanceTiles()
 
         if tempTiles[key] then
@@ -36,13 +35,11 @@ function M.toggleTileMarker(state, bolt)
             instanceManager.addInstanceTile(tileData)
         end
 
-        -- Update GUI if it's open (pass bolt parameter)
         local guiBridge = require("core.gui_bridge")
         if guiBridge.isOpen() then
             guiBridge.sendStateUpdate(state, bolt)
         end
     else
-        -- Handle regular tiles as before
         local marked = state.getMarkedTiles()
 
         if marked[key] then
@@ -79,13 +76,11 @@ function M.recolorCurrentTile(state, bolt)
     local inInstance = instanceManager.isInInstance()
 
     if inInstance then
-        -- Recolor temp instance tile
         local tempTiles = instanceManager.getInstanceTiles()
 
         if tempTiles[key] then
             tempTiles[key].colorIndex = state.getCurrentColorIndex()
 
-            -- Update GUI if open (pass bolt parameter)
             local guiBridge = require("core.gui_bridge")
             if guiBridge.isOpen() then
                 guiBridge.sendStateUpdate(state, bolt)
@@ -94,7 +89,6 @@ function M.recolorCurrentTile(state, bolt)
             return true
         end
     else
-        -- Recolor regular tile
         local marked = state.getMarkedTiles()
 
         if marked[key] then
