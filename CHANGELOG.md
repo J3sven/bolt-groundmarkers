@@ -8,11 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Added
 - Merge feature: Surface layouts can now be merged together, combining their markers into a single layout for easier sharing and management
+- The Chunk map UI now also displays actively marked tiles originating from saved layouts, these are marked in grey as layouts cannot be modified directly from the chunk map UI, but this should help with orientation when placing new markers.
 
 ## Changed
 - Tiles will now render within a chunk-sized area around the player, rather than relative to the player's current actual chunk on the map. This allows for better visibility of nearby tiles and prevents sudden disappearances when crossing chunk boundaries.
 
-## [v1.2.0] - 2026--01-10
+## [v1.2] - 2026--01-10
 
 ### Added
 - Regular overworld tiles can now also be saved and exported as layouts per chunk

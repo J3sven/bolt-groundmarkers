@@ -300,6 +300,8 @@ function M.sendStateUpdate(state, bolt)
         chunkGrid.floor = chunkSnapshot.floor
 
         local gridTiles = {}
+        local layoutTiles = {}
+
         if managerState.inInstance then
             local tempTiles = instanceManager.getInstanceTiles()
             for _, tile in pairs(tempTiles) do
@@ -314,7 +316,39 @@ function M.sendStateUpdate(state, bolt)
             end
         end
 
+        -- Add tiles from active layouts in the current chunk
+        local layoutPersist = require("data.layout_persistence")
+        local activeLayoutIds = managerState.activeLayoutIds or {}
+        for _, layoutId in ipairs(activeLayoutIds) do
+            local layout = layoutPersist.getLayout(bolt, layoutId)
+            if layout and layout.tiles then
+                local isChunkLayout = layout.layoutType == "chunk"
+
+                for _, layoutTile in ipairs(layout.tiles) do
+                    -- For chunk layouts, check if tile is in current chunk
+                    -- For instance layouts, include all tiles when in instance
+                    local shouldInclude = false
+
+                    if isChunkLayout and not managerState.inInstance then
+                        if layoutTile.chunkX == chunkSnapshot.chunkX and layoutTile.chunkZ == chunkSnapshot.chunkZ then
+                            shouldInclude = true
+                        end
+                    elseif not isChunkLayout and managerState.inInstance then
+                        shouldInclude = true
+                    end
+
+                    if shouldInclude then
+                        table.insert(layoutTiles, {
+                            localX = layoutTile.localX,
+                            localZ = layoutTile.localZ
+                        })
+                    end
+                end
+            end
+        end
+
         chunkGrid.marked = gridTiles
+        chunkGrid.layoutTiles = layoutTiles
     else
         chunkGrid.marked = {}
     end

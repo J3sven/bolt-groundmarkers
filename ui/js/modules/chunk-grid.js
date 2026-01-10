@@ -324,6 +324,13 @@ const ChunkGridModule = (() => {
                 .map((tile) => `${tile.localX},${tile.localZ}`)
         );
 
+        const layoutTiles = gridData.layoutTiles || [];
+        const layoutSet = new Set(
+            layoutTiles
+                .filter((tile) => typeof tile.localX === 'number' && typeof tile.localZ === 'number')
+                .map((tile) => `${tile.localX},${tile.localZ}`)
+        );
+
         let html = '';
         for (let displayZ = 0; displayZ < viewSize; displayZ++) {
             const localZ = viewStartZ + viewSize - 1 - displayZ;
@@ -333,6 +340,8 @@ const ChunkGridModule = (() => {
                 const classes = ['grid-cell'];
                 if (markedSet.has(key)) {
                     classes.push('marked');
+                } else if (layoutSet.has(key)) {
+                    classes.push('layout');
                 }
                 if (gridData.playerLocalX === localX && gridData.playerLocalZ === localZ) {
                     classes.push('player');

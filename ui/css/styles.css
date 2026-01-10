@@ -266,6 +266,7 @@ button.secondary:hover {
 .chunk-grid { display: grid; grid-template-columns: repeat(64, minmax(0, 1fr)); gap: 1px; width: 100%; max-width: 520px; margin: 0 auto; padding: 8px; background: rgba(10, 12, 16, 0.9); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
 .chunk-grid .grid-cell { aspect-ratio: 1/1; background: rgba(255, 255, 255, 0.04); border-radius: 2px; transition: background 0.15s ease; }
 .chunk-grid .grid-cell.marked { background: rgba(42, 121, 156, 0.85); }
+.chunk-grid .grid-cell.layout { background: rgba(80, 80, 90, 0.6); }
 .chunk-grid .grid-cell.player { background: rgba(255, 170, 0, 0.8); }
 .chunk-grid .grid-cell.hover { outline: 1px solid rgba(255,255,255,0.9); background: rgba(255,255,255,0.65); }
 .chunk-grid-disabled .chunk-grid { opacity: 0.35; pointer-events: none; }
@@ -273,6 +274,7 @@ button.secondary:hover {
 .chunk-grid-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .legend-swatch.marked { background: rgba(42, 121, 156, 0.85); }
+.legend-swatch.layout { background: rgba(80, 80, 90, 0.6); border: 1px solid rgba(255, 255, 255, 0.2); }
 .legend-swatch.player { background: rgba(255, 170, 0, 0.9); }
 .legend-swatch.hover { background: rgba(255, 255, 255, 0.9); }
 .chunk-grid-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
