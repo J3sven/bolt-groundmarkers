@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [unreleased] - 2026--01-10
+## [unreleased] - 2026-01-10
 
 ## Added
 - Merge feature: Surface layouts can now be merged together, combining their markers into a single layout for easier sharing and management
@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Changed
 - Tiles will now render within a chunk-sized area around the player, rather than relative to the player's current actual chunk on the map. This allows for better visibility of nearby tiles and prevents sudden disappearances when crossing chunk boundaries.
 
-## [v1.2] - 2026--01-10
+## [v1.2] - 2026-01-10
 
 ### Added
 - Regular overworld tiles can now also be saved and exported as layouts per chunk

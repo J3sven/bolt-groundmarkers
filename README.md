@@ -10,6 +10,8 @@ Copy the following URL and add it as a custom plugin in Bolt:
 
 ```https://j3sven.github.io/bolt-groundmarkers/dist/meta.json```
 
+View the [CHANGELOG](CHANGELOG.md) to see what's new in the latest version.
+
 ---
 
 ## Quick Controls

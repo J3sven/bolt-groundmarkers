@@ -109,6 +109,10 @@ fi
 DIST_DIR="$ROOT_DIR/dist"
 mkdir -p "$DIST_DIR"
 
+# Remove existing tarballs to keep dist directory clean
+echo "Cleaning up old tarballs from $DIST_DIR..."
+rm -f "$DIST_DIR"/*.tar.zst "$DIST_DIR"/*.tar
+
 artifact_name="bolt-groundmarkers-v${new_version}"
 tar_path="$DIST_DIR/${artifact_name}.tar"
 
