@@ -1,5 +1,5 @@
 # Ground Markers
-Ground Markers is a [Bolt launcher](https://github.com/adamcake/Bolt) plugin for RuneScape 3 that brings the comfort of RuneLite / HDOS style tile markers to RS3, including fully user-controlled layouts for instanced content.
+Ground Markers is a [Bolt launcher](https://github.com/adamcake/Bolt) plugin for RuneScape 3 that brings the comfort of RuneLite / HDOS style tile markers to RS3, including fully user-controlled layouts for both instanced content and regular overworld chunks.
 
 <img width="955" height="608" alt="image" src="https://github.com/user-attachments/assets/ea406ae2-88de-4528-b5d9-c7aec7eb5d2b" />
 
@@ -53,10 +53,13 @@ Copy the following URL and add it as a custom plugin in Bolt:
 ## User Interface
 
 ### 1. Layouts
-* **Status Bar** – shows whether you are in an instance, how many temporary tiles are waiting to be saved, and which layout (if any) is active.
-* **Save Current Tiles** – once you are in an instance and have marked tiles, type a name and click _Save Layout_ to store them. Saved layouts use chunk-local coordinates and can be reused anywhere.
-* **Saved Layouts** – list of every stored layout. Each item includes:
-  * A toggle switch to activate/deactivate the layout. The last active layout is remembered and auto-applies the next time you step into an instance.
+* **Status Bar** – shows whether you are in an instance, how many unsaved tiles are waiting to be saved, and which layout(s) are active.
+* **Save Current Tiles** – mark tiles and click _Save Layout_ to store them. Saved layouts use chunk-local coordinates and can be reused anywhere.
+  * **Instance Layouts** – when in an instance, all marked tiles are temporary and can be saved as a reusable instance layout.
+  * **Chunk Layouts** – when in the overworld, only unsaved tiles in the current chunk can be saved as a chunk-specific layout.
+* **Saved Layouts** – list of every stored layout (both instance and chunk layouts). Each item includes:
+  * A badge indicating the layout type (Instance or Chunk)
+  * A toggle switch to activate/deactivate the layout. Layouts are automatically activated when saved or imported. Active layouts are remembered and auto-apply when you enter matching locations.
   * Copy (export) and delete buttons. Export copies JSON to your clipboard (or opens a modal fallback) so you can share layouts. Delete prompts for confirmation.
   * The _Import Layout_ button in this section opens a modal where you can paste JSON that someone else exported.
 
