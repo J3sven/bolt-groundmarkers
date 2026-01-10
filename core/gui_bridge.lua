@@ -725,6 +725,8 @@ function M.handleBrowserMessage(bolt, state, data)
 
         local updated = colors.setPaletteEntry(index, rgb, data.name, bolt)
         if updated then
+            local surfaces = require("gfx.surfaces")
+            surfaces.clearCache()
             M.sendStateUpdate(state, bolt)
         end
 

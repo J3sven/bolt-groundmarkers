@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Changed
 - Tiles will now render within a chunk-sized area around the player, rather than relative to the player's current actual chunk on the map. This allows for better visibility of nearby tiles and prevents sudden disappearances when crossing chunk boundaries.
+- Improved performance of tile rendering by optimizing edge calculations and reducing redundant surface creations, this should hopefully improve frame rates when many tiles are marked.
 
 ## [v1.2] - 2026-01-10
 

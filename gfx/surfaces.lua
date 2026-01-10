@@ -1,5 +1,7 @@
 local M = {}
 
+local surfaceCache = {}
+
 local function clampByte(value)
     if type(value) ~= "number" then return 0 end
     value = math.floor(value + 0.5)
@@ -20,15 +22,30 @@ function M.createMarkerSurface(bolt)
 end
 
 function M.createColoredSurface(bolt, rgb, alpha)
+  local a = clampByte(alpha or 100)
+
+  local cacheKey = string.format("%d_%d_%d_%d", rgb[1], rgb[2], rgb[3], a)
+
+  if surfaceCache[cacheKey] then
+    return surfaceCache[cacheKey]
+  end
+
+  -- Create new surface
   local size = 4
   local rgbaData = {}
-  local a = clampByte(alpha or 100)
   for y = 0, size - 1 do
     for x = 0, size - 1 do
       rgbaData[#rgbaData + 1] = string.char(rgb[1], rgb[2], rgb[3], a)
     end
   end
-  return bolt.createsurfacefromrgba(size, size, table.concat(rgbaData))
+  local surface = bolt.createsurfacefromrgba(size, size, table.concat(rgbaData))
+
+  surfaceCache[cacheKey] = surface
+  return surface
+end
+
+function M.clearCache()
+  surfaceCache = {}
 end
 
 return M

@@ -13,7 +13,7 @@ function M.hookRender3D(state, bolt, hooks)
   end)
 end
 
-local EDGE_SUBDIVS = 2
+local EDGE_SUBDIVS = 1
 
 local function normEdgeKey(ax, az, bx, bz)
   if (bx < ax) or (bx == ax and bz < az) then
@@ -119,6 +119,18 @@ local function anyEndpointInView(ax, ay, bx, by, vx, vy, vw, vh)
   if (ax >= vx and ay >= vy and ax <= vx+vw and ay <= vy+vh) then return true end
   if (bx >= vx and by >= vy and bx <= vx+vw and by <= vy+vh) then return true end
   return false
+end
+
+local function isEdgeNearView(ax, ay, bx, by, vx, vy, vw, vh, margin)
+  -- Quick AABB check with margin - if edge bounding box doesn't overlap viewport, skip it
+  local minX = math.min(ax, bx)
+  local maxX = math.max(ax, bx)
+  local minY = math.min(ay, by)
+  local maxY = math.max(ay, by)
+
+  if maxX < vx - margin or minX > vx + vw + margin then return false end
+  if maxY < vy - margin or minY > vy + vh + margin then return false end
+  return true
 end
 
 function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
@@ -275,6 +287,28 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
         local S = coords.TILE_SIZE
 
         for _, e in pairs(uniqueEdges) do
+          -- Early culling: transform endpoints to screen space and check if edge is near viewport
+          local k_a = vkey(e.ax, e.az)
+          local k_b = vkey(e.bx, e.bz)
+          local wy_a = vHeights[k_a] or 0
+          local wy_b = vHeights[k_b] or 0
+          local wx_a, wz_a = e.ax * S, e.az * S
+          local wx_b, wz_b = e.bx * S, e.bz * S
+
+          local p3_a = bolt.point(wx_a, wy_a, wz_a)
+          local p3_b = bolt.point(wx_b, wy_b, wz_b)
+          local sx_a, sy_a, sd_a = p3_a:transform(viewProj):aspixels()
+          local sx_b, sy_b, sd_b = p3_b:transform(viewProj):aspixels()
+
+          -- Skip if both endpoints are behind camera or edge is far from viewport
+          if (sd_a <= 0.0 or sd_a > 1.0) and (sd_b <= 0.0 or sd_b > 1.0) then
+            goto continue_edge
+          end
+
+          if not isEdgeNearView(sx_a, sy_a, sx_b, sy_b, vx, vy, vw, vh, 100) then
+            goto continue_edge
+          end
+
           local samples = {}
           local function pushSample(gx, gz)
             local k = vkey(gx, gz)
@@ -316,6 +350,8 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
               end
             end
           end
+
+          ::continue_edge::
         end
       end
       ::continue_color::
