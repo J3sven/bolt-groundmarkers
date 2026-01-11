@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [unreleased]
+## [v1.4] - 2026-01-11
 
 ## Added
 - Added setting to adjust line thickness for drawn markers, accessible in the Settings tab
@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Changed
 - The palette tab has been replaced with a Settings tab, which now includes the palette editor as well as other settings such as line thickness adjustment
 - Palette colors now save on change without needing to click a save button
+- Further performance improvements when rendering many tiles
 
 ## [v1.3] - 2026-01-10
 
