@@ -22,6 +22,15 @@ local function sendBrowserPayload(payload)
     end
 end
 
+local function urlEncode(str)
+    if type(str) ~= "string" then
+        return ""
+    end
+    return (str:gsub("[^%w%-%._~]", function(char)
+        return string.format("%%%02X", char:byte())
+    end))
+end
+
 local function sendImportResult(success, message)
     sendBrowserPayload({
         type = "import_result",
@@ -305,13 +314,21 @@ function M.sendStateUpdate(state, bolt)
         if managerState.inInstance then
             local tempTiles = instanceManager.getInstanceTiles()
             for _, tile in pairs(tempTiles) do
-                table.insert(gridTiles, { localX = tile.localX, localZ = tile.localZ })
+                table.insert(gridTiles, {
+                    localX = tile.localX,
+                    localZ = tile.localZ,
+                    label = tile.label
+                })
             end
         else
             local markedTiles = state.getMarkedTiles()
             for _, tile in pairs(markedTiles) do
                 if tile.chunkX == chunkSnapshot.chunkX and tile.chunkZ == chunkSnapshot.chunkZ then
-                    table.insert(gridTiles, { localX = tile.localX, localZ = tile.localZ })
+                    table.insert(gridTiles, {
+                        localX = tile.localX,
+                        localZ = tile.localZ,
+                        label = tile.label
+                    })
                 end
             end
         end
@@ -370,7 +387,9 @@ function M.sendStateUpdate(state, bolt)
         activeLayoutIds = managerState.activeLayoutIds or {},
         chunkGrid = chunkGrid,
         palette = palette,
-        currentColorIndex = currentColorIndex
+        currentColorIndex = currentColorIndex,
+        lineThickness = state.getLineThickness(),
+        showTileLabels = state.getShowTileLabels()
     }
 
     sendBrowserPayload(message)
@@ -705,6 +724,58 @@ function M.handleBrowserMessage(bolt, state, data)
             end
         end
 
+    elseif data.action == "open_tile_label_overlay" then
+        local localX = tonumber(data.localX)
+        local localZ = tonumber(data.localZ)
+        if not localX or not localZ then
+            return
+        end
+        local scope = data.scope == "instance" and "instance" or "world"
+        local chunkInfo = instanceManager.getChunkSnapshot()
+        if not chunkInfo then
+            return
+        end
+
+        local existingLabel = nil
+        if scope == "instance" then
+            existingLabel = instanceManager.getInstanceTileLabel(localX, localZ)
+        else
+            local tiles = require("core.tiles")
+            existingLabel = tiles.getWorldTileLabel(state, chunkInfo.chunkX, chunkInfo.chunkZ, localX, localZ)
+        end
+
+        local query = string.format("?chunkX=%d&chunkZ=%d&localX=%d&localZ=%d&scope=%s",
+            chunkInfo.chunkX, chunkInfo.chunkZ, localX, localZ, scope)
+        if existingLabel and existingLabel ~= "" then
+            query = query .. "&label=" .. urlEncode(existingLabel)
+        end
+
+        M.openOverlay(bolt, state, "plugin://ui/tile-label.html" .. query)
+
+    elseif data.action == "set_tile_label" then
+        local chunkX = tonumber(data.chunkX)
+        local chunkZ = tonumber(data.chunkZ)
+        local localX = tonumber(data.localX)
+        local localZ = tonumber(data.localZ)
+        if not localX or not localZ then
+            return
+        end
+
+        local scope = data.scope == "instance" and "instance" or "world"
+        if scope == "instance" and instanceManager.isInInstance() then
+            if instanceManager.setInstanceTileLabel(localX, localZ, data.label) then
+                M.sendStateUpdate(state, bolt)
+            end
+        else
+            if not chunkX or not chunkZ then
+                return
+            end
+            local tiles = require("core.tiles")
+            if tiles.setWorldTileLabel(state, bolt, chunkX, chunkZ, localX, localZ, data.label) then
+                M.sendStateUpdate(state, bolt)
+            end
+        end
+
     elseif data.action == "hover_chunk_tile" then
         if data.clear then
             instanceManager.clearHoverTile()
@@ -729,6 +800,18 @@ function M.handleBrowserMessage(bolt, state, data)
             surfaces.clearCache()
             M.sendStateUpdate(state, bolt)
         end
+
+    elseif data.action == "update_line_thickness" then
+        local thickness = tonumber(data.thickness)
+        if thickness and thickness >= 2 and thickness <= 8 then
+            state.setLineThickness(thickness)
+            M.sendStateUpdate(state, bolt)
+        end
+
+    elseif data.action == "set_tile_label_visibility" then
+        local enabled = data.enabled and true or false
+        state.setShowTileLabels(enabled)
+        M.sendStateUpdate(state, bolt)
 
     elseif data.action == "adjust_chunk_tile_height" then
         local localX = tonumber(data.localX)

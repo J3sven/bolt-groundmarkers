@@ -9,6 +9,8 @@ local _markerSurface  = nil
 local _markedTiles    = {}
 local _frameCount     = 0
 local _currentColorIndex = 1
+local _lineThickness = 4
+local _showTileLabels = true
 
 function M.init(deps)
   _bolt   = deps.bolt
@@ -34,5 +36,17 @@ function M.getFrame() return _frameCount end
 
 function M.getCurrentColorIndex() return _currentColorIndex end
 function M.setCurrentColorIndex(i) _currentColorIndex = i end
+
+function M.getLineThickness() return _lineThickness end
+function M.setLineThickness(t)
+  if type(t) == "number" and t >= 2 and t <= 8 then
+    _lineThickness = math.floor(t)
+  end
+end
+
+function M.getShowTileLabels() return _showTileLabels end
+function M.setShowTileLabels(flag)
+  _showTileLabels = flag and true or false
+end
 
 return M

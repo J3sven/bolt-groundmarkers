@@ -3,7 +3,7 @@
 import State from './modules/state.js';
 import Socket from './modules/socket.js';
 import Modal from './modules/modal.js';
-import Palette from './modules/palette.js';
+import Settings from './modules/settings.js';
 import Layouts from './modules/layouts.js';
 import ChunkGrid from './modules/chunk-grid.js';
 
@@ -15,7 +15,7 @@ import ChunkGrid from './modules/chunk-grid.js';
         viewPanels: {
             layouts: document.getElementById('view-layouts'),
             chunk: document.getElementById('view-chunk'),
-            palette: document.getElementById('view-palette')
+            settings: document.getElementById('view-settings')
         },
         titleBar: document.querySelector('.title-bar'),
         closeButton: document.querySelector('.close-button')
@@ -76,7 +76,7 @@ import ChunkGrid from './modules/chunk-grid.js';
         });
     });
 
-    Palette.init();
+    Settings.init();
     Layouts.init();
     ChunkGrid.init();
 
@@ -121,6 +121,7 @@ import ChunkGrid from './modules/chunk-grid.js';
         }
 
         if (parsedData.type === 'state_update') {
+            const previousState = State.getState();
             State.setState({
                 inInstance: parsedData.inInstance,
                 tempTileCount: parsedData.tempTileCount,
@@ -129,13 +130,19 @@ import ChunkGrid from './modules/chunk-grid.js';
                 chunkGrid: parsedData.chunkGrid || null,
                 palette: parsedData.palette || [],
                 currentColorIndex: parsedData.currentColorIndex || 1,
-                layouts: parsedData.layouts || State.getState().layouts
+                layouts: parsedData.layouts || previousState.layouts,
+                lineThickness: typeof parsedData.lineThickness === 'number'
+                    ? parsedData.lineThickness
+                    : previousState.lineThickness,
+                showTileLabels: typeof parsedData.showTileLabels === 'boolean'
+                    ? parsedData.showTileLabels
+                    : previousState.showTileLabels
             });
 
             updateStatus(dom.instanceStatus, dom.tempTiles);
             ChunkGrid.syncSelectedColor(State.getState().palette);
             ChunkGrid.render();
-            Palette.render();
+            Settings.render();
             Layouts.renderLayouts();
             Layouts.refreshSaveState();
         } else if (parsedData.type === 'layouts_update') {

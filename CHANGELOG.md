@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [unreleased]
+
+## Added
+- Added setting to adjust line thickness for drawn markers, accessible in the Settings tab
+- Added the ability to label tiles with text, `ctrl + click` on a tile in the chunk map to add or edit a label, showing/hiding labels can be toggled in settings
+
+## Changed
+- The palette tab has been replaced with a Settings tab, which now includes the palette editor as well as other settings such as line thickness adjustment
+- Palette colors now save on change without needing to click a save button
+
 ## [v1.3] - 2026-01-10
 
 ## Added

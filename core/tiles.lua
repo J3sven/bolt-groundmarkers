@@ -1,6 +1,7 @@
 local M = {}
 local persistence = require("data.persistence")
 local HEIGHT_STEP = 25
+local MAX_LABEL_LENGTH = 36
 
 function M.toggleTileMarker(state, bolt)
     local coords = state.getCoords()
@@ -112,6 +113,36 @@ local function clampLocalCoord(value)
     return value
 end
 
+local function normalizeLabel(input)
+    if type(input) ~= "string" then
+        return nil
+    end
+    local cleaned = input:gsub("[%c]", " "):gsub("%s+", " ")
+    cleaned = cleaned:match("^%s*(.-)%s*$") or ""
+    if cleaned == "" then
+        return nil
+    end
+    if #cleaned > MAX_LABEL_LENGTH then
+        cleaned = cleaned:sub(1, MAX_LABEL_LENGTH)
+    end
+    return cleaned
+end
+
+local function getMarkedTileAt(state, chunkX, chunkZ, localX, localZ)
+    local coords = state.getCoords()
+    if not coords or not chunkX or not chunkZ or not localX or not localZ then
+        return nil, nil
+    end
+
+    local tileX = chunkX * 64 + localX
+    local tileZ = chunkZ * 64 + localZ
+    local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+    local key = coords.tileKey(worldX, worldZ)
+
+    local marked = state.getMarkedTiles()
+    return marked[key], key
+end
+
 function M.toggleWorldTileAtChunkLocal(state, bolt, chunkX, chunkZ, localX, localZ, floor, worldY, colorIndex)
     localX = clampLocalCoord(localX)
     localZ = clampLocalCoord(localZ)
@@ -160,6 +191,42 @@ function M.toggleWorldTileAtChunkLocal(state, bolt, chunkX, chunkZ, localX, loca
     persistence.saveMarkers(state, bolt)
 
     return true
+end
+
+function M.setWorldTileLabel(state, bolt, chunkX, chunkZ, localX, localZ, labelText)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+    if not chunkX or not chunkZ or not localX or not localZ then
+        return false
+    end
+
+    local tile, key = getMarkedTileAt(state, chunkX, chunkZ, localX, localZ)
+    if not tile then
+        return false
+    end
+
+    local normalized = normalizeLabel(labelText)
+    if tile.label == normalized then
+        return false
+    end
+
+    tile.label = normalized
+    persistence.saveMarkers(state, bolt)
+    return true
+end
+
+function M.getWorldTileLabel(state, chunkX, chunkZ, localX, localZ)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+    if not chunkX or not chunkZ or not localX or not localZ then
+        return nil
+    end
+
+    local tile = getMarkedTileAt(state, chunkX, chunkZ, localX, localZ)
+    if tile then
+        return tile.label
+    end
+    return nil
 end
 
 function M.adjustWorldTileHeight(state, bolt, chunkX, chunkZ, localX, localZ, deltaSteps)

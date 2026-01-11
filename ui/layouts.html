@@ -45,7 +45,7 @@
         <div class="view-toggle">
             <button class="view-button active" data-view="layouts">Layouts</button>
             <button class="view-button" data-view="chunk">Chunk Map</button>
-            <button class="view-button" data-view="palette">Palette</button>
+            <button class="view-button" data-view="settings">Settings</button>
         </div>
 
         <div id="view-layouts" class="view-panel active">
@@ -99,11 +99,39 @@
             </div>
         </div>
 
-        <div id="view-palette" class="view-panel">
+        <div id="view-settings" class="view-panel">
             <div class="section">
-                <div class="section-title">Custom Color Palette</div>
+                <div class="section-title">Rendering</div>
                 <p class="help-text">
-                    Adjust the colors used for markers and chunk editing. Changes apply immediately and sync with your layouts.
+                    Configure how ground markers are displayed in the game world.
+                </p>
+                <div class="settings-group">
+                    <label for="line-thickness-input">Line Thickness</label>
+                    <div class="number-control">
+                        <button class="number-button" id="thickness-decrease" aria-label="Decrease thickness">−</button>
+                        <input type="number" id="line-thickness-input" min="2" max="8" value="4" step="1" readonly>
+                        <button class="number-button" id="thickness-increase" aria-label="Increase thickness">+</button>
+                    </div>
+                    <p class="setting-help">Controls the thickness of tile marker outlines (2 = thin, 8 = very thick)</p>
+                </div>
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <div class="setting-row-text">
+                            <div class="setting-row-title">Tile Labels</div>
+                            <p class="setting-help">Ctrl+Click a marked tile to edit its text. Toggle to hide or show labels in-game.</p>
+                        </div>
+                        <label class="toggle-switch" aria-label="Toggle tile label visibility">
+                            <input type="checkbox" id="tile-label-toggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Color Palette</div>
+                <p class="help-text">
+                    Customize marker colors. Changes save automatically and sync with your layouts.
                 </p>
                 <div class="palette-editor" id="palette-editor">
                     <p class="palette-empty">Loading palette…</p>

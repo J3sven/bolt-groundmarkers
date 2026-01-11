@@ -4,7 +4,7 @@ function M.drawLine(surface, x1, y1, x2, y2, thickness)
   local dx, dy = x2 - x1, y2 - y1
   local dist = math.sqrt(dx * dx + dy * dy)
   if dist < 1 then return end
-  local steps = math.ceil(dist * 0.8)
+  local steps = math.ceil(dist * 0.9)
   local sx, sy = dx / steps, dy / steps
   for i = 0, steps do
     local x = x1 + sx * i

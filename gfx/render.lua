@@ -1,5 +1,18 @@
 local M = {}
 local draw = require("gfx.draw")
+local text = require("gfx.text")
+local LABEL_PIXEL_SCALE = 0.65
+local LABEL_PIXEL_SCALE_MIN = 0.45
+local LABEL_HEIGHT_OFFSET = 20
+
+local function depthScaledScale(sd, baseScale)
+  if not sd then
+    return baseScale
+  end
+  local depth = math.min(1, math.max(0, sd))
+  local factor = 0.65 + (1 - depth) * 0.55
+  return math.max(LABEL_PIXEL_SCALE_MIN, baseScale * factor)
+end
 
 local function tileCount(marked)
   local n = 0
@@ -133,7 +146,21 @@ local function isEdgeNearView(ax, ay, bx, by, vx, vy, vw, vh, margin)
   return true
 end
 
+local function projectTileCenter(bolt, state, coords, tile, viewProj, heightOffset)
+  local S = coords.TILE_SIZE
+  local cx = tile.x + S * 0.5
+  local cz = tile.z + S * 0.5
+  local cy = tile.y or tile.worldY
+  if not cy then
+    cy = terrainHeightOrNil(bolt, state, cx, cz) or 0
+  end
+  cy = cy + (heightOffset or 0)
+  local p3 = bolt.point(cx, cy, cz)
+  return p3:transform(viewProj):aspixels()
+end
+
 function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
+  text.init(bolt)
   hooks.addSwapBufferHandler("rendering", function(event)
     state.incFrame()
 
@@ -247,6 +274,8 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     if #tilesToRender == 0 then return end
 
+    local shouldDrawLabels = state.getShowTileLabels and state.getShowTileLabels()
+
     local groups = {}
     for _, t in ipairs(tilesToRender) do
       local key
@@ -342,16 +371,33 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
           pushSample(e.bx, e.bz)
 
+          local thickness = state.getLineThickness and state.getLineThickness() or 4
           for i = 1, #samples - 1 do
             local a, b = samples[i], samples[i+1]
             if not (a.sd <= 0.0 or a.sd > 1.0 or b.sd <= 0.0 or b.sd > 1.0) then
               if anyEndpointInView(a.sx, a.sy, b.sx, b.sy, vx, vy, vw, vh) then
-                draw.drawLine(coloredSurface, a.sx, a.sy, b.sx, b.sy, 3)
+                draw.drawLine(coloredSurface, a.sx, a.sy, b.sx, b.sy, thickness)
               end
             end
           end
 
           ::continue_edge::
+        end
+
+        if shouldDrawLabels then
+          for _, tile in ipairs(group.tiles) do
+            local labelText = tile.label
+            if type(labelText) == "string" and labelText ~= "" then
+              local sx, sy, sd = projectTileCenter(bolt, state, coords, tile, viewProj, LABEL_HEIGHT_OFFSET)
+              if sd and sd > 0.0 and sd <= 1.0 then
+                local margin = 50
+                if sx >= vx - margin and sx <= vx + vw + margin and sy >= vy - margin and sy <= vy + vh + margin then
+                  local labelScale = depthScaledScale(sd, LABEL_PIXEL_SCALE)
+                  text.draw(labelText, sx, sy, labelScale)
+                end
+              end
+            end
+          end
         end
       end
       ::continue_color::

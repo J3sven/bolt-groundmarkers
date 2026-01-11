@@ -31,6 +31,7 @@ function M.loadMarkers(state, bolt)
                         local floor = tonumber(tileStr:match('"floor":%s*(%d+)'))
                         local worldY = tonumber(tileStr:match('"worldY":%s*([%d%.]+)'))
                         local colorIndex = tonumber(tileStr:match('"colorIndex":%s*(%d+)')) or 1
+                        local label = tileStr:match('"label":%s*"([^"]*)"')
                         
                         if chunkX and chunkZ and localX and localZ and worldY then
                             table.insert(jsonData.tiles, {
@@ -40,7 +41,8 @@ function M.loadMarkers(state, bolt)
                                 localZ = localZ,
                                 floor = floor or 0,
                                 worldY = worldY,
-                                colorIndex = colorIndex
+                                colorIndex = colorIndex,
+                                label = label
                             })
                         end
                     end
@@ -58,6 +60,10 @@ function M.loadMarkers(state, bolt)
                 local floor = tonumber(tileData.floor) or 0
                 local worldY = tonumber(tileData.worldY)
                 local colorIndex = tonumber(tileData.colorIndex) or 1
+                local label = nil
+                if type(tileData.label) == "string" and tileData.label ~= "" then
+                    label = tileData.label
+                end
                 
                 if chunkX and chunkZ and localX and localZ and worldY then
                     -- Convert RS coordinates to world coordinates for the key
@@ -70,7 +76,8 @@ function M.loadMarkers(state, bolt)
                         colorIndex = colorIndex,
                         chunkX = chunkX, chunkZ = chunkZ,
                         localX = localX, localZ = localZ,
-                        floor = floor
+                        floor = floor,
+                        label = label
                     }
                 end
             end
@@ -96,6 +103,10 @@ function M.saveMarkers(state, bolt)
             worldY = tile.y,
             colorIndex = tile.colorIndex or 1
         }
+
+        if tile.label and tile.label ~= "" then
+            tileData.label = tile.label
+        end
         
         if tile.instanceId then
             tileData.instanceId = tile.instanceId
@@ -132,9 +143,14 @@ function M.saveMarkers(state, bolt)
                 instanceFields = string.format(', "instanceId": "%s", "isRecognized": %s', 
                     tile.instanceId, tostring(tile.isRecognized or false))
             end
+            local labelField = ""
+            if tile.label then
+                local escaped = tile.label:gsub("\\", "\\\\"):gsub('"', '\\"')
+                labelField = string.format(', "label": "%s"', escaped)
+            end
 
-            table.insert(jsonLines, string.format('    {"chunkX": %d, "chunkZ": %d, "localX": %d, "localZ": %d, "floor": %d, "worldY": %.0f, "colorIndex": %d%s}%s',
-                tile.chunkX, tile.chunkZ, tile.localX, tile.localZ, tile.floor, tile.worldY, tile.colorIndex, instanceFields, comma))
+            table.insert(jsonLines, string.format('    {"chunkX": %d, "chunkZ": %d, "localX": %d, "localZ": %d, "floor": %d, "worldY": %.0f, "colorIndex": %d%s%s}%s',
+                tile.chunkX, tile.chunkZ, tile.localX, tile.localZ, tile.floor, tile.worldY, tile.colorIndex, labelField, instanceFields, comma))
         end
         
         table.insert(jsonLines, '  ]')

@@ -9,7 +9,9 @@ const StateModule = (() => {
         layouts: [],
         chunkGrid: null,
         palette: [],
-        currentColorIndex: 1
+        currentColorIndex: 1,
+        lineThickness: 4,
+        showTileLabels: true
     };
 
     let chunkSelectedColorIndex = 1;

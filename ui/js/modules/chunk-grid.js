@@ -2,6 +2,7 @@
 
 import State from './state.js';
 import Socket from './socket.js';
+import { escapeHtml } from './utils.js';
 
 const VIEW_SIZES = [64, 48, 32, 24, 16];
 
@@ -120,10 +121,27 @@ const ChunkGridModule = (() => {
         }
 
         const chunkGrid = State.getState().chunkGrid;
+        const localX = Number(cell.dataset.localX);
+        const localZ = Number(cell.dataset.localZ);
+        if (!Number.isFinite(localX) || !Number.isFinite(localZ)) {
+            return;
+        }
+
+        if ((event.ctrlKey || event.metaKey) && cell.classList.contains('marked')) {
+            event.preventDefault();
+            Socket.sendToLua({
+                action: 'open_tile_label_overlay',
+                localX,
+                localZ,
+                scope: chunkGrid ? chunkGrid.mode : null
+            });
+            return;
+        }
+
         Socket.sendToLua({
             action: 'toggle_chunk_tile',
-            localX: Number(cell.dataset.localX),
-            localZ: Number(cell.dataset.localZ),
+            localX,
+            localZ,
             scope: chunkGrid ? chunkGrid.mode : null,
             colorIndex: State.getChunkSelectedColor()
         });
@@ -288,7 +306,7 @@ const ChunkGridModule = (() => {
                 const selected = palette.find((entry) => entry.index === State.getChunkSelectedColor());
                 const colorLabel = selected ? selected.name : `Color ${State.getChunkSelectedColor()}`;
                 const colorCode = selected ? selected.hex : '#ffffff';
-                help.innerHTML = `Editing ${modeLabel} using <span style="color: ${colorCode}">${colorLabel}</span>. Scroll to zoom, hover to preview tiles, click to mark/unmark, and <strong>Shift+Scroll</strong> over a marked tile to adjust its height. Orange shows where you stand.`;
+                help.innerHTML = `Editing ${modeLabel} using <span style="color: ${colorCode}">${colorLabel}</span>. Scroll to zoom, hover to preview tiles, click to mark/unmark, <strong>Ctrl+Click</strong> a marked tile to edit its label, and <strong>Shift+Scroll</strong> over a marked tile to adjust its height. Orange shows where you stand.`;
             } else {
                 help.textContent = 'Chunk information unavailable.';
             }
@@ -318,11 +336,18 @@ const ChunkGridModule = (() => {
         container.style.gridTemplateColumns = `repeat(${viewSize}, minmax(0, 1fr))`;
 
         const marked = gridData.marked || [];
-        const markedSet = new Set(
-            marked
-                .filter((tile) => typeof tile.localX === 'number' && typeof tile.localZ === 'number')
-                .map((tile) => `${tile.localX},${tile.localZ}`)
-        );
+        const markedSet = new Set();
+        const labelMap = new Map();
+        marked.forEach((tile) => {
+            if (typeof tile.localX !== 'number' || typeof tile.localZ !== 'number') {
+                return;
+            }
+            const key = `${tile.localX},${tile.localZ}`;
+            markedSet.add(key);
+            if (tile.label) {
+                labelMap.set(key, tile.label);
+            }
+        });
 
         const layoutTiles = gridData.layoutTiles || [];
         const layoutSet = new Set(
@@ -338,8 +363,12 @@ const ChunkGridModule = (() => {
                 const localX = viewStartX + offsetX;
                 const key = `${localX},${localZ}`;
                 const classes = ['grid-cell'];
+                const label = labelMap.get(key);
                 if (markedSet.has(key)) {
                     classes.push('marked');
+                    if (label) {
+                        classes.push('has-label');
+                    }
                 } else if (layoutSet.has(key)) {
                     classes.push('layout');
                 }
@@ -349,7 +378,8 @@ const ChunkGridModule = (() => {
                 if (State.getChunkGridHoverKey() === key) {
                     classes.push('hover');
                 }
-                html += `<div class="${classes.join(' ')}" data-local-x="${localX}" data-local-z="${localZ}"></div>`;
+                const labelAttr = label ? ` data-label="${escapeHtml(label)}" title="${escapeHtml(label)}"` : '';
+                html += `<div class="${classes.join(' ')}" data-local-x="${localX}" data-local-z="${localZ}"${labelAttr}></div>`;
             }
         }
 

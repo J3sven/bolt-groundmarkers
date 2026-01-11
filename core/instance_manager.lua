@@ -3,6 +3,7 @@ local colors = require("core.colors")
 local HEIGHT_STEP = 25
 local ACTIVE_LAYOUTS_FILE = "active_layouts.json"
 local boltRef = nil
+local LABEL_MAX_LEN = 18
 
 local state = {
     inInstance = false,
@@ -209,6 +210,21 @@ local function clampLocalCoord(value)
     return value
 end
 
+local function normalizeLabel(input)
+    if type(input) ~= "string" then
+        return nil
+    end
+    local cleaned = input:gsub("[%c]", " "):gsub("%s+", " ")
+    cleaned = cleaned:match("^%s*(.-)%s*$") or ""
+    if cleaned == "" then
+        return nil
+    end
+    if #cleaned > LABEL_MAX_LEN then
+        cleaned = cleaned:sub(1, LABEL_MAX_LEN)
+    end
+    return cleaned
+end
+
 function M.setHoverTile(localX, localZ)
     localX = clampLocalCoord(localX)
     localZ = clampLocalCoord(localZ)
@@ -337,6 +353,52 @@ function M.adjustInstanceTileHeight(localX, localZ, deltaSteps, bolt)
     tile.worldY = newY
 
     return true
+end
+
+function M.setInstanceTileLabel(localX, localZ, labelText)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+
+    if not localX or not localZ or not state.currentChunkX or not state.currentChunkZ then
+        return false
+    end
+
+    local coords = require("core.coords")
+    local tileX = state.currentChunkX * 64 + localX
+    local tileZ = state.currentChunkZ * 64 + localZ
+    local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+    local key = coords.tileKey(worldX, worldZ)
+    local tile = state.instanceTiles[key]
+    if not tile then
+        return false
+    end
+
+    local normalized = normalizeLabel(labelText)
+    if tile.label == normalized then
+        return false
+    end
+
+    tile.label = normalized
+    return true
+end
+
+function M.getInstanceTileLabel(localX, localZ)
+    localX = clampLocalCoord(localX)
+    localZ = clampLocalCoord(localZ)
+    if not localX or not localZ or not state.currentChunkX or not state.currentChunkZ then
+        return nil
+    end
+
+    local coords = require("core.coords")
+    local tileX = state.currentChunkX * 64 + localX
+    local tileZ = state.currentChunkZ * 64 + localZ
+    local worldX, worldZ = coords.tileToWorldCoords(tileX, tileZ)
+    local key = coords.tileKey(worldX, worldZ)
+    local tile = state.instanceTiles[key]
+    if tile then
+        return tile.label
+    end
+    return nil
 end
 
 return M

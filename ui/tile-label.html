@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tile Label</title>
+    <link rel="stylesheet" href="css/nis.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="nis gm-ui gm-dialog">
+    <div class="container">
+        <h1>Tile Label</h1>
+        <p class="help-text" id="label-help">Select a tile to edit its label.</p>
+
+        <label for="tile-label-input">Label Text</label>
+        <input type="text" id="tile-label-input" maxlength="36" placeholder="Enter a short label" autofocus>
+        <p class="setting-help" style="margin-top: 6px;">Leave empty to remove the label.</p>
+
+        <div class="button-group">
+            <button class="secondary" id="cancel-button">Cancel</button>
+            <button class="primary" id="save-button">Save Label</button>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const chunkX = Number(params.get('chunkX'));
+        const chunkZ = Number(params.get('chunkZ'));
+        const localX = Number(params.get('localX'));
+        const localZ = Number(params.get('localZ'));
+        const scope = params.get('scope') || 'world';
+        const existingLabel = params.get('label') || '';
+
+        const input = document.getElementById('tile-label-input');
+        const saveButton = document.getElementById('save-button');
+        const cancelButton = document.getElementById('cancel-button');
+        const helpText = document.getElementById('label-help');
+
+        if (!Number.isNaN(chunkX) && !Number.isNaN(chunkZ) && !Number.isNaN(localX) && !Number.isNaN(localZ)) {
+            helpText.textContent = `Chunk (${chunkX}, ${chunkZ}) • Local (${localX}, ${localZ})`;
+        }
+
+        if (existingLabel) {
+            input.value = existingLabel;
+        }
+        updateButtonLabel();
+
+        function updateButtonLabel() {
+            const trimmed = input.value.trim();
+            saveButton.textContent = trimmed.length === 0 ? 'Clear Label' : 'Save Label';
+        }
+
+        input.addEventListener('input', updateButtonLabel);
+
+        saveButton.addEventListener('click', () => {
+            const rawValue = input.value || '';
+            fetch('https://bolt-api/send-message', {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'set_tile_label',
+                    chunkX,
+                    chunkZ,
+                    localX,
+                    localZ,
+                    scope,
+                    label: rawValue
+                })
+            }).catch(err => console.error('Failed to send tile label:', err));
+
+            setTimeout(closeOverlay, 100);
+        });
+
+        cancelButton.addEventListener('click', closeOverlay);
+
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                saveButton.click();
+            } else if (event.key === 'Escape') {
+                cancelButton.click();
+            }
+        });
+
+        function closeOverlay() {
+            fetch('https://bolt-api/send-message', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'close_overlay' })
+            }).catch(err => console.error('Failed to close overlay:', err));
+        }
+    </script>
+</body>
+</html>
