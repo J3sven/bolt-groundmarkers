@@ -35,6 +35,23 @@ local function sanitizeStoredName(name, fallback)
     return cleaned
 end
 
+local LABEL_MAX_LEN = 18
+
+local function sanitizeTileLabel(label)
+    if type(label) ~= "string" then
+        return nil
+    end
+    local cleaned = label:gsub("[%c]", " "):gsub("%s+", " ")
+    cleaned = cleaned:match("^%s*(.-)%s*$") or ""
+    if cleaned == "" then
+        return nil
+    end
+    if #cleaned > LABEL_MAX_LEN then
+        cleaned = cleaned:sub(1, LABEL_MAX_LEN)
+    end
+    return cleaned
+end
+
 local function normalizeTile(tile)
     local localX = tonumber(tile.localX)
     local localZ = tonumber(tile.localZ)
@@ -67,6 +84,11 @@ local function normalizeTile(tile)
     end
     if tile.chunkZ then
         normalized.chunkZ = tonumber(tile.chunkZ)
+    end
+
+    local label = sanitizeTileLabel(tile.label)
+    if label then
+        normalized.label = label
     end
 
     return normalized
@@ -137,6 +159,10 @@ local function decodeLayoutsJSON(jsonStr)
                     tile.localZ = tonumber(tileStr:match('"localZ":(%-?%d+)'))
                     tile.worldY = tonumber(tileStr:match('"worldY":(%-?%d+%.?%d*)'))
                     tile.colorIndex = tonumber(tileStr:match('"colorIndex":(%d+)'))
+                    local label = tileStr:match('"label":"([^"]*)"')
+                    if label and label ~= "" then
+                        tile.label = label
+                    end
                     table.insert(layout.tiles, tile)
                 end
             end
@@ -238,6 +264,9 @@ function M.createLayout(bolt, name, instanceTiles, layoutType)
         local normalized = normalizeTile(tile)
         if normalized then
             normalized.worldY = tile.y or normalized.worldY
+            if tile.label and not normalized.label then
+                normalized.label = sanitizeTileLabel(tile.label)
+            end
             table.insert(tiles, normalized)
         end
     end
@@ -319,6 +348,9 @@ local function convertImportedTiles(tileList)
         local prepared = normalizeTile(tile)
         if prepared then
             prepared.worldY = tonumber(tile.worldY) or prepared.worldY
+            if tile.label and not prepared.label then
+                prepared.label = sanitizeTileLabel(tile.label)
+            end
             table.insert(normalized, prepared)
         end
     end

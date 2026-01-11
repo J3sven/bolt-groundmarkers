@@ -278,7 +278,8 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
                   localZ = localZ,
                   floor = 0,
                   tileX = layoutTileX,
-                  tileZ = layoutTileZ
+                  tileZ = layoutTileZ,
+                  label = layoutTile.label
                 }
 
                 table.insert(tilesToRender, transformedTile)
@@ -301,7 +302,8 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
                 localZ = localZ,
                 floor = 0,
                 tileX = newTileX,
-                tileZ = newTileZ
+                tileZ = newTileZ,
+                label = layoutTile.label
               }
 
               table.insert(tilesToRender, transformedTile)
