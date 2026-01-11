@@ -11,6 +11,7 @@ local _frameCount     = 0
 local _currentColorIndex = 1
 local _lineThickness = 4
 local _showTileLabels = true
+local _tileRevision = 0
 
 function M.init(deps)
   _bolt   = deps.bolt
@@ -29,7 +30,18 @@ function M.getMarkerSurface() return _markerSurface end
 function M.setMarkerSurface(s) _markerSurface = s end
 
 function M.getMarkedTiles() return _markedTiles end
-function M.setMarkedTiles(tbl) _markedTiles = tbl end
+function M.setMarkedTiles(tbl)
+  _markedTiles = tbl
+  _tileRevision = _tileRevision + 1
+end
+
+function M.bumpTileRevision()
+  _tileRevision = _tileRevision + 1
+end
+
+function M.getTileRevision()
+  return _tileRevision
+end
 
 function M.incFrame() _frameCount = _frameCount + 1 end
 function M.getFrame() return _frameCount end

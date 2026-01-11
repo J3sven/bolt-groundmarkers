@@ -77,6 +77,7 @@ function M.loadMarkers(state, bolt)
                         chunkX = chunkX, chunkZ = chunkZ,
                         localX = localX, localZ = localZ,
                         floor = floor,
+                        tileX = tileX, tileZ = tileZ,
                         label = label
                     }
                 end

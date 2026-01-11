@@ -26,11 +26,17 @@ function M.toggleTileMarker(state, bolt)
             instanceManager.removeInstanceTile(key)
         else
             local tileData = {
-                x = tile2D.x, z = tile2D.z, y = py,
+                x = tile2D.x,
+                z = tile2D.z,
+                y = py,
                 colorIndex = state.getCurrentColorIndex(),
-                chunkX = chunkX, chunkZ = chunkZ,
-                localX = localX, localZ = localZ,
-                floor = floor
+                chunkX = chunkX,
+                chunkZ = chunkZ,
+                localX = localX,
+                localZ = localZ,
+                floor = floor,
+                tileX = tileX,
+                tileZ = tileZ
             }
 
             instanceManager.addInstanceTile(tileData)
@@ -46,17 +52,25 @@ function M.toggleTileMarker(state, bolt)
         if marked[key] then
             local existing = marked[key]
             marked[key] = nil
+            state.bumpTileRevision()
             persistence.saveMarkers(state, bolt)
         else
             local markerData = {
-                x = tile2D.x, z = tile2D.z, y = py,
+                x = tile2D.x,
+                z = tile2D.z,
+                y = py,
                 colorIndex = state.getCurrentColorIndex(),
-                chunkX = chunkX, chunkZ = chunkZ,
-                localX = localX, localZ = localZ,
-                floor = floor
+                chunkX = chunkX,
+                chunkZ = chunkZ,
+                localX = localX,
+                localZ = localZ,
+                floor = floor,
+                tileX = tileX,
+                tileZ = tileZ
             }
 
             marked[key] = markerData
+            state.bumpTileRevision()
             persistence.saveMarkers(state, bolt)
         end
     end
@@ -159,6 +173,7 @@ function M.toggleWorldTileAtChunkLocal(state, bolt, chunkX, chunkZ, localX, loca
     local marked = state.getMarkedTiles()
     if marked[key] then
         marked[key] = nil
+        state.bumpTileRevision()
         persistence.saveMarkers(state, bolt)
         return true
     end
@@ -184,10 +199,13 @@ function M.toggleWorldTileAtChunkLocal(state, bolt, chunkX, chunkZ, localX, loca
         chunkZ = chunkZ,
         localX = localX,
         localZ = localZ,
-        floor = floor or 0
+        floor = floor or 0,
+        tileX = tileX,
+        tileZ = tileZ
     }
 
     marked[key] = markerData
+    state.bumpTileRevision()
     persistence.saveMarkers(state, bolt)
 
     return true
@@ -259,6 +277,7 @@ function M.adjustWorldTileHeight(state, bolt, chunkX, chunkZ, localX, localZ, de
     tile.y = newY
     tile.worldY = newY
     persistence.saveMarkers(state, bolt)
+    state.bumpTileRevision()
 
     return true
 end

@@ -4,6 +4,8 @@ local text = require("gfx.text")
 local LABEL_PIXEL_SCALE = 0.65
 local LABEL_PIXEL_SCALE_MIN = 0.45
 local LABEL_HEIGHT_OFFSET = 20
+local vertexHeightCache = {}
+local lastHeightRevision = -1
 
 local function depthScaledScale(sd, baseScale)
   if not sd then
@@ -56,7 +58,12 @@ end
 local function computeUniqueEdges(tiles, coords)
   local edges = {}
   for _, t in ipairs(tiles) do
-    local tx, tz = coords.worldToTileCoords(t.x, t.z)
+    local tx, tz
+    if t.tileX and t.tileZ then
+      tx, tz = t.tileX, t.tileZ
+    else
+      tx, tz = coords.worldToTileCoords(t.x, t.z)
+    end
 
     local c00x, c00z = tx,     tz
     local c10x, c10z = tx + 1, tz
@@ -87,7 +94,12 @@ local function buildVertexHeights(bolt, state, tiles, coords)
   local acc, cnt = {}, {}
   if not useTerrain then
     for _, t in ipairs(tiles) do
-      local tx, tz = coords.worldToTileCoords(t.x, t.z)
+      local tx, tz
+      if t.tileX and t.tileZ then
+        tx, tz = t.tileX, t.tileZ
+      else
+        tx, tz = coords.worldToTileCoords(t.x, t.z)
+      end
       local y = t.y or 0
       local verts = {
         vkey(tx,     tz),
@@ -105,7 +117,12 @@ local function buildVertexHeights(bolt, state, tiles, coords)
   local vh = {}
   local seen = {}
   for _, t in ipairs(tiles) do
-    local tx, tz = coords.worldToTileCoords(t.x, t.z)
+    local tx, tz
+    if t.tileX and t.tileZ then
+      tx, tz = t.tileX, t.tileZ
+    else
+      tx, tz = coords.worldToTileCoords(t.x, t.z)
+    end
     local verts = {
       {tx,     tz},
       {tx + 1, tz},
@@ -116,12 +133,19 @@ local function buildVertexHeights(bolt, state, tiles, coords)
       local k = vkey(v[1], v[2])
       if not seen[k] then
         seen[k] = true
-        local wx, wz = v[1] * S, v[2] * S
-        local y = useTerrain and terrainHeightOrNil(bolt, state, wx, wz)
-        if y == nil then
-          y = (acc[k] and acc[k] / cnt[k]) or 0
+        if useTerrain and vertexHeightCache[k] ~= nil then
+          vh[k] = vertexHeightCache[k]
+        else
+          local wx, wz = v[1] * S, v[2] * S
+          local y = useTerrain and terrainHeightOrNil(bolt, state, wx, wz)
+          if y == nil then
+            y = (acc[k] and acc[k] / cnt[k]) or 0
+          end
+          vh[k] = y
+          if useTerrain then
+            vertexHeightCache[k] = y
+          end
         end
-        vh[k] = y
       end
     end
   end
@@ -164,6 +188,12 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
   hooks.addSwapBufferHandler("rendering", function(event)
     state.incFrame()
 
+    local currentRevision = state.getTileRevision and state.getTileRevision() or 0
+    if currentRevision ~= lastHeightRevision then
+      vertexHeightCache = {}
+      lastHeightRevision = currentRevision
+    end
+
     local markerSurface = state.getMarkerSurface()
     local viewProj = state.getViewProj()
     if not markerSurface or not viewProj then return end
@@ -185,8 +215,8 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
     if not inInstance then
       local marked = state.getMarkedTiles()
       for _, t in pairs(marked) do
-        local markerTileX = t.chunkX * 64 + t.localX
-        local markerTileZ = t.chunkZ * 64 + t.localZ
+        local markerTileX = t.tileX or (t.chunkX * 64 + t.localX)
+        local markerTileZ = t.tileZ or (t.chunkZ * 64 + t.localZ)
 
         local tileDx = math.abs(markerTileX - playerTileX)
         local tileDz = math.abs(markerTileZ - playerTileZ)
@@ -229,7 +259,9 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
                   chunkZ = layoutTile.chunkZ,
                   localX = localX,
                   localZ = localZ,
-                  floor = 0
+                  floor = 0,
+                  tileX = layoutTileX,
+                  tileZ = layoutTileZ
                 }
 
                 table.insert(tilesToRender, transformedTile)
@@ -250,7 +282,9 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
                 chunkZ = playerChunkZ,
                 localX = localX,
                 localZ = localZ,
-                floor = 0
+                floor = 0,
+                tileX = newTileX,
+                tileZ = newTileZ
               }
 
               table.insert(tilesToRender, transformedTile)

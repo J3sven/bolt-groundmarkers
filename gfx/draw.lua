@@ -4,12 +4,15 @@ function M.drawLine(surface, x1, y1, x2, y2, thickness)
   local dx, dy = x2 - x1, y2 - y1
   local dist = math.sqrt(dx * dx + dy * dy)
   if dist < 1 then return end
-  local steps = math.ceil(dist * 0.9)
+
+  local coverageStep = math.max(1, thickness * 0.75)
+  local steps = math.max(1, math.ceil(dist / coverageStep))
   local sx, sy = dx / steps, dy / steps
+
   for i = 0, steps do
     local x = x1 + sx * i
     local y = y1 + sy * i
-    surface:drawtoscreen(0, 0, 4, 4, x - thickness/2, y - thickness/2, thickness, thickness)
+    surface:drawtoscreen(0, 0, 4, 4, x - thickness / 2, y - thickness / 2, thickness, thickness)
   end
 end
 

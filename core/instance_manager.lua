@@ -252,6 +252,8 @@ function M.setHoverTile(localX, localZ)
         chunkZ = state.currentChunkZ,
         localX = localX,
         localZ = localZ,
+        tileX = tileX,
+        tileZ = tileZ,
         floor = state.playerFloor or 0,
         previewColor = {255, 255, 255},
         previewAlpha = 45
@@ -311,7 +313,9 @@ function M.toggleTileAtLocal(localX, localZ, colorIndex, bolt)
         chunkZ = chunkZ,
         localX = localX,
         localZ = localZ,
-        floor = state.playerFloor or 0
+        floor = state.playerFloor or 0,
+        tileX = tileX,
+        tileZ = tileZ
     }
 
     M.addInstanceTile(tileData)
