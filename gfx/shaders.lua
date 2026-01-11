@@ -5,6 +5,10 @@ local shaderProgram = nil
 local screenWidth = 1920
 local screenHeight = 1080
 
+local BYTES_PER_VERTEX = 28
+local UNIFORM_SCREEN = 3
+local UNIFORM_HALF_THICKNESS = 4
+
 function M.setScreenDimensions(w, h)
   screenWidth = (w and w > 0) and w or screenWidth
   screenHeight = (h and h > 0) and h or screenHeight
@@ -14,10 +18,13 @@ local function createVertexShader(bolt)
   return bolt.createvertexshader(
     "layout(location=0) in highp vec2 surfacePos;" ..
     "layout(location=1) in highp vec4 inColor;" ..
-    "layout(location=2) uniform highp vec2 screenSize;" ..
+    "layout(location=2) in highp float edgeCoord;" ..
+    "layout(location=3) uniform highp vec2 screenSize;" ..
     "out highp vec4 vColor;" ..
+    "out highp float vEdgeCoord;" ..
     "void main() {" ..
       "vColor = inColor;" ..
+      "vEdgeCoord = edgeCoord;" ..
       "highp vec2 normPos = surfacePos / screenSize;" ..
       "highp vec2 ndc = normPos * 2.0 - 1.0;" ..
       "gl_Position = vec4(ndc, 0.0, 1.0);" ..
@@ -28,9 +35,18 @@ end
 local function createFragmentShader(bolt)
   return bolt.createfragmentshader(
     "in highp vec4 vColor;" ..
+    "in highp float vEdgeCoord;" ..
+    "layout(location=4) uniform highp float halfThickness;" ..
     "out highp vec4 fragColor;" ..
     "void main() {" ..
-      "fragColor = vColor;" ..
+      "highp float coverage = 1.0;" ..
+      "if (halfThickness > 0.0) {" ..
+        "const highp float FEATHER_PX = 1.0;" ..
+        "highp float distToEdge = 1.0 - clamp(abs(vEdgeCoord), 0.0, 1.0);" ..
+        "highp float feather = clamp(FEATHER_PX / (halfThickness + 0.0001), 0.0, 1.0);" ..
+        "coverage = smoothstep(0.0, feather, distToEdge);" ..
+      "}" ..
+      "fragColor = vec4(vColor.rgb, vColor.a * coverage);" ..
     "}"
   )
 end
@@ -45,20 +61,20 @@ function M.init(bolt)
   vs = nil
   fs = nil
 
-  local bytesPerVertex = 24 
-
-  shaderProgram:setattribute(0, 4, true, true, 2, 0, bytesPerVertex)
-  shaderProgram:setattribute(1, 4, true, true, 4, 8, bytesPerVertex)
+  shaderProgram:setattribute(0, 4, true, true, 2, 0, BYTES_PER_VERTEX)
+  shaderProgram:setattribute(1, 4, true, true, 4, 8, BYTES_PER_VERTEX)
+  shaderProgram:setattribute(2, 4, true, true, 1, 24, BYTES_PER_VERTEX)
 end
 
-local function addVertex(buf, offset, px, py, r, g, b, a)
+local function addVertex(buf, offset, px, py, r, g, b, a, edgeCoord)
   buf:setfloat32(offset + 0, px)
   buf:setfloat32(offset + 4, py)
   buf:setfloat32(offset + 8, r)
   buf:setfloat32(offset + 12, g)
   buf:setfloat32(offset + 16, b)
   buf:setfloat32(offset + 20, a)
-  return offset + 24
+  buf:setfloat32(offset + 24, edgeCoord or 0.0)
+  return offset + BYTES_PER_VERTEX
 end
 
 local renderSurface = nil
@@ -78,8 +94,7 @@ function M.drawQuadsShader(bolt, quads, viewportX, viewportY)
 
   local numQuads = #quads
   local vertexCount = numQuads * 6
-  local bytesPerVertex = 24
-  local bufferSize = vertexCount * bytesPerVertex
+  local bufferSize = vertexCount * BYTES_PER_VERTEX
 
   local buf = bolt.createbuffer(bufferSize)
 
@@ -94,17 +109,18 @@ function M.drawQuadsShader(bolt, quads, viewportX, viewportY)
     local b = (quad.b or 255) / 255.0
     local a = (quad.a or 255) / 255.0
 
-    offset = addVertex(buf, offset, x1, y1, r, g, b, a)
-    offset = addVertex(buf, offset, x2, y2, r, g, b, a)
-    offset = addVertex(buf, offset, x3, y3, r, g, b, a)
+    offset = addVertex(buf, offset, x1, y1, r, g, b, a, 0.0)
+    offset = addVertex(buf, offset, x2, y2, r, g, b, a, 0.0)
+    offset = addVertex(buf, offset, x3, y3, r, g, b, a, 0.0)
 
-    offset = addVertex(buf, offset, x1, y1, r, g, b, a)
-    offset = addVertex(buf, offset, x3, y3, r, g, b, a)
-    offset = addVertex(buf, offset, x4, y4, r, g, b, a)
+    offset = addVertex(buf, offset, x1, y1, r, g, b, a, 0.0)
+    offset = addVertex(buf, offset, x3, y3, r, g, b, a, 0.0)
+    offset = addVertex(buf, offset, x4, y4, r, g, b, a, 0.0)
   end
 
   renderSurface:clear()
-  shaderProgram:setuniform2f(2, screenWidth, screenHeight)
+  shaderProgram:setuniform2f(UNIFORM_SCREEN, screenWidth, screenHeight)
+  shaderProgram:setuniform1f(UNIFORM_HALF_THICKNESS, -1.0)
 
   local shaderbuf = bolt.createshaderbuffer(buf)
   shaderProgram:drawtosurface(renderSurface, shaderbuf, vertexCount)
@@ -130,8 +146,7 @@ function M.drawLinesShader(bolt, lines, viewportX, viewportY)
 
   local numLines = #lines
   local vertexCount = numLines * 6
-  local bytesPerVertex = 24
-  local bufferSize = vertexCount * bytesPerVertex
+  local bufferSize = vertexCount * BYTES_PER_VERTEX
 
   local buf = bolt.createbuffer(bufferSize)
 
@@ -161,18 +176,26 @@ function M.drawLinesShader(bolt, lines, viewportX, viewportY)
     local px2_bot = x2 - px
     local py2_bot = y2 - py
 
-    offset = addVertex(buf, offset, px1_top, py1_top, r, g, b, a)
-    offset = addVertex(buf, offset, px1_bot, py1_bot, r, g, b, a)
-    offset = addVertex(buf, offset, px2_top, py2_top, r, g, b, a)
+    offset = addVertex(buf, offset, px1_top, py1_top, r, g, b, a, 1.0)
+    offset = addVertex(buf, offset, px1_bot, py1_bot, r, g, b, a, -1.0)
+    offset = addVertex(buf, offset, px2_top, py2_top, r, g, b, a, 1.0)
 
-    offset = addVertex(buf, offset, px1_bot, py1_bot, r, g, b, a)
-    offset = addVertex(buf, offset, px2_bot, py2_bot, r, g, b, a)
-    offset = addVertex(buf, offset, px2_top, py2_top, r, g, b, a)
+    offset = addVertex(buf, offset, px1_bot, py1_bot, r, g, b, a, -1.0)
+    offset = addVertex(buf, offset, px2_bot, py2_bot, r, g, b, a, -1.0)
+    offset = addVertex(buf, offset, px2_top, py2_top, r, g, b, a, 1.0)
   end
 
   renderSurface:clear()
 
-  shaderProgram:setuniform2f(2, screenWidth, screenHeight)
+  shaderProgram:setuniform2f(UNIFORM_SCREEN, screenWidth, screenHeight)
+  local uniformThickness = 2.0
+  for i = 1, #lines do
+    if type(lines[i].thickness) == "number" then
+      uniformThickness = lines[i].thickness
+      break
+    end
+  end
+  shaderProgram:setuniform1f(UNIFORM_HALF_THICKNESS, math.max(0.5, uniformThickness) / 2.0)
 
   local shaderbuf = bolt.createshaderbuffer(buf)
   shaderProgram:drawtosurface(renderSurface, shaderbuf, vertexCount)
