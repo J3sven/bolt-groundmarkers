@@ -11,7 +11,9 @@ const StateModule = (() => {
         palette: [],
         currentColorIndex: 1,
         lineThickness: 4,
-        showTileLabels: true
+        showTileLabels: true,
+        showTileFill: false,
+        tileFillOpacity: 50
     };
 
     let chunkSelectedColorIndex = 1;

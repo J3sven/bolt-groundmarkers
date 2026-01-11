@@ -11,12 +11,18 @@ const SettingsModule = (() => {
     const thicknessDecrease = document.getElementById('thickness-decrease');
     const thicknessIncrease = document.getElementById('thickness-increase');
     const labelToggle = document.getElementById('tile-label-toggle');
+    const fillToggle = document.getElementById('tile-fill-toggle');
+    const fillOpacityInput = document.getElementById('tile-fill-opacity-input');
+    const fillOpacityDecrease = document.getElementById('fill-opacity-decrease');
+    const fillOpacityIncrease = document.getElementById('fill-opacity-increase');
     let lastSignature = null;
 
     function init() {
         initPaletteEditor();
         initLineThickness();
         initLabelToggle();
+        initFillToggle();
+        initFillOpacityControl();
     }
 
     function initPaletteEditor() {
@@ -24,7 +30,6 @@ const SettingsModule = (() => {
             return;
         }
 
-        // Auto-save on color change
         paletteEditor.addEventListener('change', (event) => {
             const colorInput = event.target.closest('.palette-color-input');
             if (colorInput) {
@@ -38,7 +43,6 @@ const SettingsModule = (() => {
             }
         });
 
-        // Auto-save on name blur
         paletteEditor.addEventListener('blur', (event) => {
             const nameInput = event.target.closest('.palette-name-input');
             if (nameInput) {
@@ -98,6 +102,58 @@ const SettingsModule = (() => {
                 action: 'set_tile_label_visibility',
                 enabled: labelToggle.checked
             });
+        });
+    }
+
+    function initFillToggle() {
+        if (!fillToggle) {
+            return;
+        }
+
+        fillToggle.addEventListener('change', () => {
+            Socket.sendToLua({
+                action: 'set_tile_fill_visibility',
+                enabled: fillToggle.checked
+            });
+        });
+    }
+
+    function initFillOpacityControl() {
+        if (!fillOpacityInput || !fillOpacityDecrease || !fillOpacityIncrease) {
+            return;
+        }
+
+        const clampOpacity = (value) => {
+            if (Number.isNaN(value)) {
+                return null;
+            }
+            const clamped = Math.max(5, Math.min(100, value));
+            return Math.round(clamped / 5) * 5;
+        };
+
+        const applyOpacity = (value) => {
+            const next = clampOpacity(value);
+            if (next === null || next === Number(fillOpacityInput.value)) {
+                return;
+            }
+
+            fillOpacityInput.value = next;
+
+            Socket.sendToLua({
+                action: 'set_tile_fill_opacity',
+                opacity: next
+            });
+            Notifications.showNotification(`Tile fill opacity set to ${next}%`, 'success');
+        };
+
+        fillOpacityDecrease.addEventListener('click', () => {
+            const current = Number(fillOpacityInput.value) || 50;
+            applyOpacity(current - 5);
+        });
+
+        fillOpacityIncrease.addEventListener('click', () => {
+            const current = Number(fillOpacityInput.value) || 50;
+            applyOpacity(current + 5);
         });
     }
 
@@ -174,6 +230,18 @@ const SettingsModule = (() => {
         }
     }
 
+    function updateFillVisibilityToggle(flag) {
+        if (fillToggle) {
+            fillToggle.checked = !!flag;
+        }
+    }
+
+    function updateFillOpacity(value) {
+        if (fillOpacityInput && typeof value === 'number') {
+            fillOpacityInput.value = value;
+        }
+    }
+
     function render() {
         renderPalette();
 
@@ -185,6 +253,8 @@ const SettingsModule = (() => {
         }
 
         updateLabelVisibilityToggle(state.showTileLabels);
+        updateFillVisibilityToggle(state.showTileFill);
+        updateFillOpacity(state.tileFillOpacity || 50);
     }
 
     return {

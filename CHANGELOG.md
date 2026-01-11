@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## Added
+- Added a setting that lets tiles be rendered with a fill.
+- Added a fill opacity setting for filled tiles.
+
 ## Changed
 - Moved to a shader based rendering approach for drawing tiles, greatly improving performance and visual quality
 

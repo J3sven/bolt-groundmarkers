@@ -106,13 +106,15 @@
                     Configure how ground markers are displayed in the game world.
                 </p>
                 <div class="settings-group">
-                    <label for="line-thickness-input">Line Thickness</label>
-                    <div class="number-control">
-                        <button class="number-button" id="thickness-decrease" aria-label="Decrease thickness">−</button>
-                        <input type="number" id="line-thickness-input" min="2" max="8" value="4" step="1" readonly>
-                        <button class="number-button" id="thickness-increase" aria-label="Increase thickness">+</button>
+                    <div class="setting-inline-row">
+                        <label for="line-thickness-input">Line Thickness</label>
+                        <div class="number-control">
+                            <button class="number-button" id="thickness-decrease" aria-label="Decrease thickness">−</button>
+                            <input type="number" id="line-thickness-input" min="2" max="8" value="4" step="1" readonly>
+                            <button class="number-button" id="thickness-increase" aria-label="Increase thickness">+</button>
+                        </div>
                     </div>
-                    <p class="setting-help">Controls the thickness of tile marker outlines (2 = thin, 8 = very thick)</p>
+                    <p class="setting-help">Controls the thickness of tile marker outlines.</p>
                 </div>
                 <div class="settings-group">
                     <div class="setting-row">
@@ -124,6 +126,29 @@
                             <input type="checkbox" id="tile-label-toggle">
                             <span class="toggle-slider"></span>
                         </label>
+                    </div>
+                </div>
+                <div class="settings-group">
+                    <div class="setting-row">
+                        <div class="setting-row-text">
+                            <div class="setting-row-title">Tile Fill</div>
+                            <p class="setting-help">Fills the interior of marked tiles with a faint tint.</p>
+                        </div>
+                        <label class="toggle-switch" aria-label="Toggle tile fill visibility">
+                            <input type="checkbox" id="tile-fill-toggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="fill-opacity-control">
+                        <div class="setting-inline-row">
+                            <label for="tile-fill-opacity-input">Fill Opacity</label>
+                            <div class="number-control opacity-control">
+                                <button class="number-button" id="fill-opacity-decrease" aria-label="Decrease fill opacity">−</button>
+                                <input type="number" id="tile-fill-opacity-input" min="5" max="100" value="50" step="5" readonly>
+                                <button class="number-button" id="fill-opacity-increase" aria-label="Increase fill opacity">+</button>
+                            </div>
+                        </div>
+                        <p class="setting-help">Fine tune how strong the fill tint should be.</p>
                     </div>
                 </div>
             </div>

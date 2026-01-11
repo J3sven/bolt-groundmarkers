@@ -313,6 +313,42 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     local shouldDrawLabels = state.getShowTileLabels and state.getShowTileLabels()
 
+    local function resolveTileColor(tile)
+      if tile.previewColor then
+        return tile.previewColor[1] or 255, tile.previewColor[2] or 255, tile.previewColor[3] or 255
+      end
+      local rgb = colors.get(tile.colorIndex or 1) or {255, 255, 255}
+      return rgb[1] or 255, rgb[2] or 255, rgb[3] or 255
+    end
+
+    local FILL_LIGHTEN_BASE = 0.35
+    local FILL_LIGHTEN_RANGE = 0.4
+    local function lightenColorComponent(component, factor)
+      local normalizedFactor = factor or 0.0
+      if normalizedFactor < 0.0 then
+        normalizedFactor = 0.0
+      elseif normalizedFactor > 1.0 then
+        normalizedFactor = 1.0
+      end
+      return math.max(0, math.min(255, math.floor(component + (255 - component) * normalizedFactor + 0.5)))
+    end
+
+    local function resolveLightenFactor(opacityPercent)
+      local normalizedOpacity = (type(opacityPercent) == "number" and opacityPercent or 50) / 100
+      if normalizedOpacity < 0.0 then
+        normalizedOpacity = 0.0
+      elseif normalizedOpacity > 1.0 then
+        normalizedOpacity = 1.0
+      end
+      local factor = FILL_LIGHTEN_BASE + (1.0 - normalizedOpacity) * FILL_LIGHTEN_RANGE
+      if factor < 0.0 then
+        factor = 0.0
+      elseif factor > 1.0 then
+        factor = 1.0
+      end
+      return factor
+    end
+
     local groups = {}
     for _, t in ipairs(tilesToRender) do
       local key
@@ -349,10 +385,70 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
         local vHeights = buildVertexHeights(bolt, state, group.tiles, coords)
         local S = coords.TILE_SIZE
 
+        local outlineR, outlineG, outlineB = group.rgb[1], group.rgb[2], group.rgb[3]
+        local alpha = (group.alpha or 100) * 255 / 100
+
+        -- Draw filled tiles if enabled (before edges so edges are on top)
+        local showFill = state.getShowTileFill and state.getShowTileFill()
+        if showFill then
+          local quadsToFill = {}
+          local opacityPercent = state.getTileFillOpacity and state.getTileFillOpacity() or 50
+          local fillAlpha = math.max(0, math.min(255, math.floor(alpha * (opacityPercent / 100))))
+          local lightenFactor = resolveLightenFactor(opacityPercent)
+
+          for _, tile in ipairs(group.tiles) do
+            local gx, gz = tile.tileX, tile.tileZ
+            local k1 = vkey(gx, gz)
+            local k2 = vkey(gx + 1, gz)
+            local k3 = vkey(gx + 1, gz + 1)
+            local k4 = vkey(gx, gz + 1)
+
+            local wy1 = vHeights[k1] or 0
+            local wy2 = vHeights[k2] or 0
+            local wy3 = vHeights[k3] or 0
+            local wy4 = vHeights[k4] or 0
+
+            local wx1, wz1 = gx * S, gz * S
+            local wx2, wz2 = (gx + 1) * S, gz * S
+            local wx3, wz3 = (gx + 1) * S, (gz + 1) * S
+            local wx4, wz4 = gx * S, (gz + 1) * S
+
+            local p1 = bolt.point(wx1, wy1, wz1)
+            local p2 = bolt.point(wx2, wy2, wz2)
+            local p3 = bolt.point(wx3, wy3, wz3)
+            local p4 = bolt.point(wx4, wy4, wz4)
+
+            local sx1, sy1, sd1 = p1:transform(viewProj):aspixels()
+            local sx2, sy2, sd2 = p2:transform(viewProj):aspixels()
+            local sx3, sy3, sd3 = p3:transform(viewProj):aspixels()
+            local sx4, sy4, sd4 = p4:transform(viewProj):aspixels()
+
+            local fillR, fillG, fillB = resolveTileColor(tile)
+            fillR = lightenColorComponent(fillR, lightenFactor)
+            fillG = lightenColorComponent(fillG, lightenFactor)
+            fillB = lightenColorComponent(fillB, lightenFactor)
+
+            -- Only draw if at least one corner is in view
+            if not ((sd1 <= 0.0 or sd1 > 1.0) and (sd2 <= 0.0 or sd2 > 1.0) and
+                    (sd3 <= 0.0 or sd3 > 1.0) and (sd4 <= 0.0 or sd4 > 1.0)) then
+              table.insert(quadsToFill, {
+                x1 = sx1, y1 = sy1,
+                x2 = sx2, y2 = sy2,
+                x3 = sx3, y3 = sy3,
+                x4 = sx4, y4 = sy4,
+                r = fillR, g = fillG, b = fillB, a = fillAlpha
+              })
+            end
+          end
+
+          if #quadsToFill > 0 then
+            shaders.drawQuadsShader(bolt, quadsToFill, vx, vy)
+          end
+        end
+
+        -- Draw edges
         local linesToDraw = {}
         local thickness = state.getLineThickness and state.getLineThickness() or 4
-        local r, g, b = group.rgb[1], group.rgb[2], group.rgb[3]
-        local alpha = (group.alpha or 100) * 255 / 100
         for _, e in pairs(uniqueEdges) do
           local k_a = vkey(e.ax, e.az)
           local k_b = vkey(e.bx, e.bz)
@@ -415,7 +511,7 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
                   x1 = sampleA.sx, y1 = sampleA.sy,
                   x2 = sampleB.sx, y2 = sampleB.sy,
                   thickness = thickness,
-                  r = r, g = g, b = b, a = alpha
+                  r = outlineR, g = outlineG, b = outlineB, a = alpha
                 })
               end
             end

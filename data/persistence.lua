@@ -6,6 +6,7 @@ function M.loadMarkers(state, bolt)
     local saved = bolt.loadconfig(SAVE_FILE)
     local coords = state.getCoords()
     local markedTiles = {}
+    local savedSettings = nil
     
     if saved and saved ~= "" then
         local success, data = false, nil
@@ -47,6 +48,41 @@ function M.loadMarkers(state, bolt)
                         end
                     end
                 end
+
+                local settingsMatch = saved:match('"settings":%s*{(.-)}')
+                if settingsMatch then
+                    jsonData.settings = {}
+
+                    local lt = tonumber(settingsMatch:match('"lineThickness":%s*([%d%.%-]+)'))
+                    if lt then
+                        jsonData.settings.lineThickness = lt
+                    end
+
+                    local showLabelsStr = settingsMatch:match('"showTileLabels":%s*(%a+)')
+                    if showLabelsStr then
+                        local lowered = string.lower(showLabelsStr)
+                        if lowered == "true" then
+                            jsonData.settings.showTileLabels = true
+                        elseif lowered == "false" then
+                            jsonData.settings.showTileLabels = false
+                        end
+                    end
+
+                    local showFillStr = settingsMatch:match('"showTileFill":%s*(%a+)')
+                    if showFillStr then
+                        local lowered = string.lower(showFillStr)
+                        if lowered == "true" then
+                            jsonData.settings.showTileFill = true
+                        elseif lowered == "false" then
+                            jsonData.settings.showTileFill = false
+                        end
+                    end
+
+                    local fillOpacity = tonumber(settingsMatch:match('"tileFillOpacity":%s*(%d+)'))
+                    if fillOpacity then
+                        jsonData.settings.tileFillOpacity = fillOpacity
+                    end
+                end
                 return jsonData
             end)
         end
@@ -83,9 +119,31 @@ function M.loadMarkers(state, bolt)
                 end
             end
         end
+
+        if data and type(data.settings) == "table" then
+            savedSettings = data.settings
+        end
     end
     
     state.setMarkedTiles(markedTiles)
+
+    if savedSettings then
+        if type(savedSettings.lineThickness) == "number" then
+            local thickness = math.floor(savedSettings.lineThickness + 0.5)
+            if thickness >= 2 and thickness <= 8 then
+                state.setLineThickness(thickness)
+            end
+        end
+        if type(savedSettings.showTileLabels) == "boolean" then
+            state.setShowTileLabels(savedSettings.showTileLabels)
+        end
+        if type(savedSettings.showTileFill) == "boolean" then
+            state.setShowTileFill(savedSettings.showTileFill)
+        end
+        if type(savedSettings.tileFillOpacity) == "number" then
+            state.setTileFillOpacity(savedSettings.tileFillOpacity)
+        end
+    end
     
 end
 
@@ -118,10 +176,18 @@ function M.saveMarkers(state, bolt)
         count = count + 1
     end
     
+    local settingsPayload = {
+        lineThickness = state.getLineThickness and state.getLineThickness() or 4,
+        showTileLabels = state.getShowTileLabels and state.getShowTileLabels() or true,
+        showTileFill = state.getShowTileFill and state.getShowTileFill() or false,
+        tileFillOpacity = state.getTileFillOpacity and state.getTileFillOpacity() or 50
+    }
+
     local jsonData = {
         version = 1,
         totalTiles = count,
-        tiles = tiles
+        tiles = tiles,
+        settings = settingsPayload
     }
     
     local success, jsonString = false, nil
@@ -154,7 +220,12 @@ function M.saveMarkers(state, bolt)
                 tile.chunkX, tile.chunkZ, tile.localX, tile.localZ, tile.floor, tile.worldY, tile.colorIndex, labelField, instanceFields, comma))
         end
         
-        table.insert(jsonLines, '  ]')
+        table.insert(jsonLines, '  ],')
+        table.insert(jsonLines, string.format('  "settings": {"lineThickness": %d, "showTileLabels": %s, "showTileFill": %s, "tileFillOpacity": %d}', 
+            settingsPayload.lineThickness,
+            tostring(settingsPayload.showTileLabels),
+            tostring(settingsPayload.showTileFill),
+            settingsPayload.tileFillOpacity))
         table.insert(jsonLines, '}')
         jsonString = table.concat(jsonLines, '\n')
         success = true

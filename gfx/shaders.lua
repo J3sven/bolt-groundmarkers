@@ -65,6 +65,58 @@ local renderSurface = nil
 local renderSurfaceW = 0
 local renderSurfaceH = 0
 
+function M.drawQuadsShader(bolt, quads, viewportX, viewportY)
+  if not shaderProgram then M.init(bolt) end
+  if #quads == 0 then return end
+
+  if not renderSurface or renderSurfaceW ~= screenWidth or renderSurfaceH ~= screenHeight then
+    renderSurface = bolt.createsurface(screenWidth, screenHeight)
+    renderSurface:setalpha(1.0)
+    renderSurfaceW = screenWidth
+    renderSurfaceH = screenHeight
+  end
+
+  local numQuads = #quads
+  local vertexCount = numQuads * 6
+  local bytesPerVertex = 24
+  local bufferSize = vertexCount * bytesPerVertex
+
+  local buf = bolt.createbuffer(bufferSize)
+
+  local offset = 0
+  for i, quad in ipairs(quads) do
+    local x1, y1 = quad.x1, quad.y1
+    local x2, y2 = quad.x2, quad.y2
+    local x3, y3 = quad.x3, quad.y3
+    local x4, y4 = quad.x4, quad.y4
+    local r = (quad.r or 255) / 255.0
+    local g = (quad.g or 255) / 255.0
+    local b = (quad.b or 255) / 255.0
+    local a = (quad.a or 255) / 255.0
+
+    offset = addVertex(buf, offset, x1, y1, r, g, b, a)
+    offset = addVertex(buf, offset, x2, y2, r, g, b, a)
+    offset = addVertex(buf, offset, x3, y3, r, g, b, a)
+
+    offset = addVertex(buf, offset, x1, y1, r, g, b, a)
+    offset = addVertex(buf, offset, x3, y3, r, g, b, a)
+    offset = addVertex(buf, offset, x4, y4, r, g, b, a)
+  end
+
+  renderSurface:clear()
+  shaderProgram:setuniform2f(2, screenWidth, screenHeight)
+
+  local shaderbuf = bolt.createshaderbuffer(buf)
+  shaderProgram:drawtosurface(renderSurface, shaderbuf, vertexCount)
+
+  local vx = viewportX or 0
+  local vy = viewportY or 0
+  renderSurface:drawtoscreen(0, 0, screenWidth, screenHeight, vx, vy, screenWidth, screenHeight)
+
+  buf = nil
+  shaderbuf = nil
+end
+
 function M.drawLinesShader(bolt, lines, viewportX, viewportY)
   if not shaderProgram then M.init(bolt) end
   if #lines == 0 then return end

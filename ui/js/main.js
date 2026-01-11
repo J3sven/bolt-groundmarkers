@@ -136,7 +136,13 @@ import ChunkGrid from './modules/chunk-grid.js';
                     : previousState.lineThickness,
                 showTileLabels: typeof parsedData.showTileLabels === 'boolean'
                     ? parsedData.showTileLabels
-                    : previousState.showTileLabels
+                    : previousState.showTileLabels,
+                showTileFill: typeof parsedData.showTileFill === 'boolean'
+                    ? parsedData.showTileFill
+                    : previousState.showTileFill,
+                tileFillOpacity: typeof parsedData.tileFillOpacity === 'number'
+                    ? parsedData.tileFillOpacity
+                    : previousState.tileFillOpacity
             });
 
             updateStatus(dom.instanceStatus, dom.tempTiles);

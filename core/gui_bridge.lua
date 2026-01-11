@@ -3,12 +3,13 @@ local M = {}
 
 local colors = require("core.colors")
 local json = require("core.simplejson")
+local persistence = require("data.persistence")
 
 local browser = nil
 local launcherBrowser = nil
 local isOpen = false
 local lastUpdateFrame = 0
-local updateInterval = 60  -- Update GUI every 60 frames
+local updateInterval = 60
 local cachedState = nil
 local cachedBolt = nil
 
@@ -389,7 +390,9 @@ function M.sendStateUpdate(state, bolt)
         palette = palette,
         currentColorIndex = currentColorIndex,
         lineThickness = state.getLineThickness(),
-        showTileLabels = state.getShowTileLabels()
+        showTileLabels = state.getShowTileLabels(),
+        showTileFill = state.getShowTileFill(),
+        tileFillOpacity = state.getTileFillOpacity and state.getTileFillOpacity() or 50
     }
 
     sendBrowserPayload(message)
@@ -805,13 +808,29 @@ function M.handleBrowserMessage(bolt, state, data)
         local thickness = tonumber(data.thickness)
         if thickness and thickness >= 2 and thickness <= 8 then
             state.setLineThickness(thickness)
+            persistence.saveMarkers(state, bolt)
             M.sendStateUpdate(state, bolt)
         end
 
     elseif data.action == "set_tile_label_visibility" then
         local enabled = data.enabled and true or false
         state.setShowTileLabels(enabled)
+        persistence.saveMarkers(state, bolt)
         M.sendStateUpdate(state, bolt)
+
+    elseif data.action == "set_tile_fill_visibility" then
+        local enabled = data.enabled and true or false
+        state.setShowTileFill(enabled)
+        persistence.saveMarkers(state, bolt)
+        M.sendStateUpdate(state, bolt)
+
+    elseif data.action == "set_tile_fill_opacity" then
+        local opacity = tonumber(data.opacity)
+        if opacity then
+            state.setTileFillOpacity(opacity)
+            persistence.saveMarkers(state, bolt)
+            M.sendStateUpdate(state, bolt)
+        end
 
     elseif data.action == "adjust_chunk_tile_height" then
         local localX = tonumber(data.localX)
