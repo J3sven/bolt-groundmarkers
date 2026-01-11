@@ -13,7 +13,8 @@ const StateModule = (() => {
         lineThickness: 4,
         showTileLabels: true,
         showTileFill: false,
-        tileFillOpacity: 50
+        tileFillOpacity: 50,
+        hideTileConnections: false
     };
 
     let chunkSelectedColorIndex = 1;

@@ -142,7 +142,10 @@ import ChunkGrid from './modules/chunk-grid.js';
                     : previousState.showTileFill,
                 tileFillOpacity: typeof parsedData.tileFillOpacity === 'number'
                     ? parsedData.tileFillOpacity
-                    : previousState.tileFillOpacity
+                    : previousState.tileFillOpacity,
+                hideTileConnections: typeof parsedData.hideTileConnections === 'boolean'
+                    ? parsedData.hideTileConnections
+                    : previousState.hideTileConnections
             });
 
             updateStatus(dom.instanceStatus, dom.tempTiles);

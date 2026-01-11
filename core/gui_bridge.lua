@@ -392,7 +392,8 @@ function M.sendStateUpdate(state, bolt)
         lineThickness = state.getLineThickness(),
         showTileLabels = state.getShowTileLabels(),
         showTileFill = state.getShowTileFill(),
-        tileFillOpacity = state.getTileFillOpacity and state.getTileFillOpacity() or 50
+        tileFillOpacity = state.getTileFillOpacity and state.getTileFillOpacity() or 50,
+        hideTileConnections = state.getHideTileConnections and state.getHideTileConnections() or false
     }
 
     sendBrowserPayload(message)
@@ -831,6 +832,12 @@ function M.handleBrowserMessage(bolt, state, data)
             persistence.saveMarkers(state, bolt)
             M.sendStateUpdate(state, bolt)
         end
+
+    elseif data.action == "set_hide_tile_connections" then
+        local enabled = data.enabled and true or false
+        state.setHideTileConnections(enabled)
+        persistence.saveMarkers(state, bolt)
+        M.sendStateUpdate(state, bolt)
 
     elseif data.action == "adjust_chunk_tile_height" then
         local localX = tonumber(data.localX)

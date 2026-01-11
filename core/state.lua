@@ -12,6 +12,7 @@ local _currentColorIndex = 1
 local _lineThickness = 4
 local _showTileLabels = true
 local _showTileFill = false
+local _hideTileConnections = false
 local _tileRevision = 0
 local _tileFillOpacity = 50
 
@@ -66,6 +67,11 @@ end
 function M.getShowTileFill() return _showTileFill end
 function M.setShowTileFill(flag)
   _showTileFill = flag and true or false
+end
+
+function M.getHideTileConnections() return _hideTileConnections end
+function M.setHideTileConnections(flag)
+  _hideTileConnections = flag and true or false
 end
 
 function M.getTileFillOpacity() return _tileFillOpacity end

@@ -55,7 +55,7 @@ local function terrainHeightOrNil(bolt, state, wx, wz)
   return nil
 end
 
-local function computeUniqueEdges(tiles, coords)
+local function computeUniqueEdges(tiles, coords, hideInterior)
   local edges = {}
   for _, t in ipairs(tiles) do
     local tx, tz
@@ -79,12 +79,26 @@ local function computeUniqueEdges(tiles, coords)
 
     for _, e in ipairs(tileEdges) do
       local k = normEdgeKey(e[1],e[2],e[3],e[4])
-      if not edges[k] then
-        edges[k] = { ax=e[1], az=e[2], bx=e[3], bz=e[4] }
+      local entry = edges[k]
+      if entry then
+        entry.count = (entry.count or 1) + 1
+      else
+        edges[k] = { ax=e[1], az=e[2], bx=e[3], bz=e[4], count = 1 }
       end
     end
   end
-  return edges
+
+  if not hideInterior then
+    return edges
+  end
+
+  local filtered = {}
+  for key, edge in pairs(edges) do
+    if edge.count == 1 then
+      filtered[key] = edge
+    end
+  end
+  return filtered
 end
 
 local function buildVertexHeights(bolt, state, tiles, coords)
@@ -380,7 +394,8 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     for _, group in pairs(groups) do
       if #group.tiles > 0 then
-        local uniqueEdges = computeUniqueEdges(group.tiles, coords)
+        local hideInterior = state.getHideTileConnections and state.getHideTileConnections()
+        local uniqueEdges = computeUniqueEdges(group.tiles, coords, hideInterior)
 
         local vHeights = buildVertexHeights(bolt, state, group.tiles, coords)
         local S = coords.TILE_SIZE

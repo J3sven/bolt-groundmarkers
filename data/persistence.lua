@@ -78,6 +78,16 @@ function M.loadMarkers(state, bolt)
                         end
                     end
 
+                    local hideConnectionsStr = settingsMatch:match('"hideTileConnections":%s*(%a+)')
+                    if hideConnectionsStr then
+                        local lowered = string.lower(hideConnectionsStr)
+                        if lowered == "true" then
+                            jsonData.settings.hideTileConnections = true
+                        elseif lowered == "false" then
+                            jsonData.settings.hideTileConnections = false
+                        end
+                    end
+
                     local fillOpacity = tonumber(settingsMatch:match('"tileFillOpacity":%s*(%d+)'))
                     if fillOpacity then
                         jsonData.settings.tileFillOpacity = fillOpacity
@@ -140,6 +150,9 @@ function M.loadMarkers(state, bolt)
         if type(savedSettings.showTileFill) == "boolean" then
             state.setShowTileFill(savedSettings.showTileFill)
         end
+        if type(savedSettings.hideTileConnections) == "boolean" then
+            state.setHideTileConnections(savedSettings.hideTileConnections)
+        end
         if type(savedSettings.tileFillOpacity) == "number" then
             state.setTileFillOpacity(savedSettings.tileFillOpacity)
         end
@@ -180,6 +193,7 @@ function M.saveMarkers(state, bolt)
         lineThickness = state.getLineThickness and state.getLineThickness() or 4,
         showTileLabels = state.getShowTileLabels and state.getShowTileLabels() or true,
         showTileFill = state.getShowTileFill and state.getShowTileFill() or false,
+        hideTileConnections = state.getHideTileConnections and state.getHideTileConnections() or false,
         tileFillOpacity = state.getTileFillOpacity and state.getTileFillOpacity() or 50
     }
 
@@ -221,10 +235,11 @@ function M.saveMarkers(state, bolt)
         end
         
         table.insert(jsonLines, '  ],')
-        table.insert(jsonLines, string.format('  "settings": {"lineThickness": %d, "showTileLabels": %s, "showTileFill": %s, "tileFillOpacity": %d}', 
+        table.insert(jsonLines, string.format('  "settings": {"lineThickness": %d, "showTileLabels": %s, "showTileFill": %s, "hideTileConnections": %s, "tileFillOpacity": %d}', 
             settingsPayload.lineThickness,
             tostring(settingsPayload.showTileLabels),
             tostring(settingsPayload.showTileFill),
+            tostring(settingsPayload.hideTileConnections),
             settingsPayload.tileFillOpacity))
         table.insert(jsonLines, '}')
         jsonString = table.concat(jsonLines, '\n')

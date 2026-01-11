@@ -15,6 +15,7 @@ const SettingsModule = (() => {
     const fillOpacityInput = document.getElementById('tile-fill-opacity-input');
     const fillOpacityDecrease = document.getElementById('fill-opacity-decrease');
     const fillOpacityIncrease = document.getElementById('fill-opacity-increase');
+    const hideConnectionsToggle = document.getElementById('hide-tile-connections-toggle');
     let lastSignature = null;
 
     function init() {
@@ -22,6 +23,7 @@ const SettingsModule = (() => {
         initLineThickness();
         initLabelToggle();
         initFillToggle();
+        initHideConnectionsToggle();
         initFillOpacityControl();
     }
 
@@ -114,6 +116,19 @@ const SettingsModule = (() => {
             Socket.sendToLua({
                 action: 'set_tile_fill_visibility',
                 enabled: fillToggle.checked
+            });
+        });
+    }
+
+    function initHideConnectionsToggle() {
+        if (!hideConnectionsToggle) {
+            return;
+        }
+
+        hideConnectionsToggle.addEventListener('change', () => {
+            Socket.sendToLua({
+                action: 'set_hide_tile_connections',
+                enabled: hideConnectionsToggle.checked
             });
         });
     }
@@ -236,6 +251,12 @@ const SettingsModule = (() => {
         }
     }
 
+    function updateHideConnectionsToggle(flag) {
+        if (hideConnectionsToggle) {
+            hideConnectionsToggle.checked = !!flag;
+        }
+    }
+
     function updateFillOpacity(value) {
         if (fillOpacityInput && typeof value === 'number') {
             fillOpacityInput.value = value;
@@ -255,6 +276,7 @@ const SettingsModule = (() => {
         updateLabelVisibilityToggle(state.showTileLabels);
         updateFillVisibilityToggle(state.showTileFill);
         updateFillOpacity(state.tileFillOpacity || 50);
+        updateHideConnectionsToggle(state.hideTileConnections);
     }
 
     return {
