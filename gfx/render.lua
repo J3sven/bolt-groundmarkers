@@ -438,6 +438,23 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
             local sx3, sy3, sd3 = p3:transform(viewProj):aspixels()
             local sx4, sy4, sd4 = p4:transform(viewProj):aspixels()
 
+            local function isDepthValid(sd)
+              return sd and sd > 0.0 and sd <= 1.0
+            end
+
+            if not (isDepthValid(sd1) and isDepthValid(sd2) and isDepthValid(sd3) and isDepthValid(sd4)) then
+              goto continue_fill_tile
+            end
+
+            local function isFinite(v)
+              return v == v and v ~= math.huge and v ~= -math.huge
+            end
+
+            if not (isFinite(sx1) and isFinite(sx2) and isFinite(sx3) and isFinite(sx4) and
+                    isFinite(sy1) and isFinite(sy2) and isFinite(sy3) and isFinite(sy4)) then
+              goto continue_fill_tile
+            end
+
             local fillR, fillG, fillB = resolveTileColor(tile)
             fillR = lightenColorComponent(fillR, lightenFactor)
             fillG = lightenColorComponent(fillG, lightenFactor)
@@ -454,6 +471,8 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
                 r = fillR, g = fillG, b = fillB, a = fillAlpha
               })
             end
+
+            ::continue_fill_tile::
           end
 
           if #quadsToFill > 0 then

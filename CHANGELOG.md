@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [v1.7] - 2026-01-11
+
+## Fixed
+- Tile fills will no longer explode if one or more boundaries of a tile are off-screen.
+
 ## [v1.6] - 2026-01-11
 
 ## Added
