@@ -163,6 +163,9 @@ const LayoutsModule = (() => {
                                 <input type="checkbox" data-layout-id="${layout.id}" ${isActive ? 'checked' : ''}>
                                 <span class="toggle-track"></span>
                             </label>
+                            <button type="button" class="icon-button" data-action="edit" data-layout-id="${layout.id}" title="Edit layout" aria-label="Edit layout">
+                                <img src="svg/edit.svg" alt="">
+                            </button>
                             <button type="button" class="icon-button" data-action="export" data-layout-id="${layout.id}" title="Copy layout JSON" aria-label="Copy layout JSON">
                                 <img src="svg/copy.svg" alt="">
                             </button>
@@ -212,11 +215,18 @@ const LayoutsModule = (() => {
         }
 
         const action = actionButton.dataset.action;
-        if (action === 'export') {
+        if (action === 'edit') {
+            editLayout(layoutId);
+        } else if (action === 'export') {
             exportLayout(layoutId);
         } else if (action === 'delete') {
             requestDeleteLayout(layoutId);
         }
+    }
+
+    function editLayout(layoutId) {
+        // Send message to open layout editor
+        Socket.sendToLua({ action: 'open_layout_editor', layoutId: layoutId });
     }
 
     function exportLayout(layoutId) {

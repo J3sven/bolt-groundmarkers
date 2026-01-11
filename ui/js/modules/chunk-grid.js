@@ -81,7 +81,10 @@ const ChunkGridModule = (() => {
             return;
         }
 
-        const key = `${cell.dataset.localX},${cell.dataset.localZ}`;
+        const localX = Number(cell.dataset.localX);
+        const localZ = Number(cell.dataset.localZ);
+        const key = `${localX},${localZ}`;
+
         if (key === State.getChunkGridHoverKey()) {
             return;
         }
@@ -96,8 +99,8 @@ const ChunkGridModule = (() => {
 
         Socket.sendToLua({
             action: 'hover_chunk_tile',
-            localX: Number(cell.dataset.localX),
-            localZ: Number(cell.dataset.localZ)
+            localX,
+            localZ
         });
     }
 
@@ -167,6 +170,7 @@ const ChunkGridModule = (() => {
         }
 
         event.preventDefault();
+        event.stopPropagation();
         const direction = Math.sign(event.deltaY);
         if (!direction) {
             return;

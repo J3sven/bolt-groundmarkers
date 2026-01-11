@@ -839,6 +839,165 @@ function M.handleBrowserMessage(bolt, state, data)
         persistence.saveMarkers(state, bolt)
         M.sendStateUpdate(state, bolt)
 
+    elseif data.action == "open_layout_editor" then
+        local layoutId = data.layoutId
+        if layoutId then
+            local layout = layoutPersist.getLayout(bolt, layoutId)
+            if layout then
+                local message = {
+                    type = "open_layout_editor",
+                    layout = layout
+                }
+                sendBrowserPayload(message)
+            end
+        end
+
+    elseif data.action == "toggle_layout_tile" then
+        local layoutId = data.layoutId
+        local localX = tonumber(data.localX)
+        local localZ = tonumber(data.localZ)
+        local colorIndex = tonumber(data.colorIndex) or 1
+
+        if layoutId and localX and localZ then
+            local layout = layoutPersist.getLayout(bolt, layoutId)
+            if layout then
+                -- Get current chunk info for Y position
+                local chunkInfo = instanceManager.getChunkSnapshot()
+                local worldY = chunkInfo and chunkInfo.worldY or 0
+
+                local tileData = {
+                    localX = localX,
+                    localZ = localZ,
+                    colorIndex = colorIndex,
+                    worldY = worldY
+                }
+
+                if layout.layoutType == "chunk" then
+                    local chunkX = tonumber(data.chunkX)
+                    local chunkZ = tonumber(data.chunkZ)
+                    if chunkX and chunkZ then
+                        tileData.chunkX = chunkX
+                        tileData.chunkZ = chunkZ
+                    else
+                        if chunkInfo then
+                            tileData.chunkX = chunkInfo.chunkX
+                            tileData.chunkZ = chunkInfo.chunkZ
+                        end
+                    end
+                end
+
+                if layoutPersist.updateLayoutTile(bolt, layoutId, tileData) then
+                    M.sendFullUpdate(bolt, state)
+                end
+            end
+        end
+
+    elseif data.action == "open_layout_tile_label_editor" then
+        local layoutId = data.layoutId
+        local localX = tonumber(data.localX)
+        local localZ = tonumber(data.localZ)
+
+        if not layoutId or not localX or not localZ then
+            return
+        end
+
+        local layout = layoutPersist.getLayout(bolt, layoutId)
+        if not layout then
+            return
+        end
+
+        local isChunkLayout = layout.layoutType == "chunk"
+        local chunkX, chunkZ
+
+        if isChunkLayout then
+            chunkX = tonumber(data.chunkX)
+            chunkZ = tonumber(data.chunkZ)
+            if not chunkX or not chunkZ then
+                local chunkInfo = instanceManager.getChunkSnapshot()
+                if chunkInfo then
+                    chunkX = chunkInfo.chunkX
+                    chunkZ = chunkInfo.chunkZ
+                end
+            end
+        end
+
+        local existingLabel = nil
+        for _, tile in ipairs(layout.tiles or {}) do
+            local match = false
+            if isChunkLayout then
+                match = tile.localX == localX and tile.localZ == localZ and
+                        tile.chunkX == chunkX and tile.chunkZ == chunkZ
+            else
+                match = tile.localX == localX and tile.localZ == localZ
+            end
+
+            if match then
+                existingLabel = tile.label
+                break
+            end
+        end
+
+        local query = string.format("?layoutId=%s&localX=%d&localZ=%d",
+            urlEncode(layoutId), localX, localZ)
+
+        if isChunkLayout and chunkX and chunkZ then
+            query = query .. string.format("&chunkX=%d&chunkZ=%d", chunkX, chunkZ)
+        end
+
+        if existingLabel and existingLabel ~= "" then
+            query = query .. "&label=" .. urlEncode(existingLabel)
+        end
+
+        M.openOverlay(bolt, state, "plugin://ui/tile-label.html" .. query .. "&scope=layout")
+
+    elseif data.action == "set_layout_tile_label" then
+        local layoutId = data.layoutId
+        local localX = tonumber(data.localX)
+        local localZ = tonumber(data.localZ)
+        local chunkX = tonumber(data.chunkX)
+        local chunkZ = tonumber(data.chunkZ)
+
+        if not layoutId or not localX or not localZ then
+            return
+        end
+
+        if layoutPersist.updateLayoutTileLabel(bolt, layoutId, localX, localZ, chunkX, chunkZ, data.label) then
+            M.sendFullUpdate(bolt, state)
+        end
+
+    elseif data.action == "adjust_layout_tile_height" then
+        local layoutId = data.layoutId
+        local localX = tonumber(data.localX)
+        local localZ = tonumber(data.localZ)
+        local chunkX = tonumber(data.chunkX)
+        local chunkZ = tonumber(data.chunkZ)
+        local direction = tonumber(data.direction)
+
+        if not layoutId or not localX or not localZ or not direction or direction == 0 then
+            return
+        end
+
+        if direction > 0 then
+            direction = 1
+        elseif direction < 0 then
+            direction = -1
+        end
+
+        if layoutPersist.adjustLayoutTileHeight(bolt, layoutId, localX, localZ, chunkX, chunkZ, direction) then
+            M.sendFullUpdate(bolt, state)
+        end
+
+    elseif data.action == "hover_layout_tile" then
+        if data.clear then
+            instanceManager.clearHoverTile()
+        else
+            local localX = tonumber(data.localX)
+            local localZ = tonumber(data.localZ)
+            if localX and localZ then
+                instanceManager.setHoverTile(localX, localZ)
+            end
+        end
+
     elseif data.action == "adjust_chunk_tile_height" then
         local localX = tonumber(data.localX)
         local localZ = tonumber(data.localZ)

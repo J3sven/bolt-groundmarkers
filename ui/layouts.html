@@ -45,6 +45,7 @@
         <div class="view-toggle">
             <button class="view-button active" data-view="layouts">Layouts</button>
             <button class="view-button" data-view="chunk">Chunk Map</button>
+            <button class="view-button" data-view="editor" id="editor-view-button" style="display: none;">Editor</button>
             <button class="view-button" data-view="settings">Settings</button>
         </div>
 
@@ -93,6 +94,33 @@
                         <span><span class="legend-swatch player"></span>Player</span>
                         <span><span class="legend-swatch marked"></span>Marked</span>
                         <span><span class="legend-swatch layout"></span>Layout</span>
+                        <span><span class="legend-swatch hover"></span>Hover Preview</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-editor" class="view-panel">
+            <div class="section" id="editor-section">
+                <div class="section-header">
+                    <div class="section-title" id="editor-title">Layout Editor</div>
+                    <div class="section-header-buttons">
+                        <button class="secondary" id="editor-close-button">Close Editor</button>
+                    </div>
+                </div>
+                <p class="help-text" id="editor-help">
+                    Loading editor...
+                </p>
+                <div class="chunk-grid-wrapper">
+                    <div class="chunk-grid-controls">
+                        <label for="editor-color-select">Tile Color</label>
+                        <select id="editor-color-select" disabled></select>
+                    </div>
+                    <div class="chunk-grid-meta" id="editor-grid-meta">Layout Editor</div>
+                    <div class="chunk-grid" id="editor-grid"></div>
+                    <div class="chunk-grid-legend">
+                        <span><span class="legend-swatch player"></span>Player</span>
+                        <span><span class="legend-swatch marked"></span>Layout Tile</span>
                         <span><span class="legend-swatch hover"></span>Hover Preview</span>
                     </div>
                 </div>

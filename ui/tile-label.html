@@ -29,6 +29,7 @@
         const localX = Number(params.get('localX'));
         const localZ = Number(params.get('localZ'));
         const scope = params.get('scope') || 'world';
+        const layoutId = params.get('layoutId') || null;
         const existingLabel = params.get('label') || '';
 
         const input = document.getElementById('tile-label-input');
@@ -54,17 +55,26 @@
 
         saveButton.addEventListener('click', () => {
             const rawValue = input.value || '';
+
+            const action = scope === 'layout' ? 'set_layout_tile_label' : 'set_tile_label';
+
+            const message = {
+                action,
+                chunkX,
+                chunkZ,
+                localX,
+                localZ,
+                scope,
+                label: rawValue
+            };
+
+            if (scope === 'layout' && layoutId) {
+                message.layoutId = layoutId;
+            }
+
             fetch('https://bolt-api/send-message', {
                 method: 'POST',
-                body: JSON.stringify({
-                    action: 'set_tile_label',
-                    chunkX,
-                    chunkZ,
-                    localX,
-                    localZ,
-                    scope,
-                    label: rawValue
-                })
+                body: JSON.stringify(message)
             }).catch(err => console.error('Failed to send tile label:', err));
 
             setTimeout(closeOverlay, 100);

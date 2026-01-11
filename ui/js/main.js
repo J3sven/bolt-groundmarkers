@@ -6,6 +6,7 @@ import Modal from './modules/modal.js';
 import Settings from './modules/settings.js';
 import Layouts from './modules/layouts.js';
 import ChunkGrid from './modules/chunk-grid.js';
+import LayoutEditor from './modules/layout-editor.js';
 
 (function init() {
     const dom = {
@@ -15,6 +16,7 @@ import ChunkGrid from './modules/chunk-grid.js';
         viewPanels: {
             layouts: document.getElementById('view-layouts'),
             chunk: document.getElementById('view-chunk'),
+            editor: document.getElementById('view-editor'),
             settings: document.getElementById('view-settings')
         },
         titleBar: document.querySelector('.title-bar'),
@@ -22,6 +24,22 @@ import ChunkGrid from './modules/chunk-grid.js';
     };
 
     let activeView = 'layouts';
+
+    // Setup faster scrolling for embedded browser
+    function handleWheel(e) {
+        // Don't intercept scrolling on grid elements (they have their own zoom behavior)
+        const target = e.target;
+        if (target.closest('.chunk-grid') || target.closest('.chunk-grid-wrapper')) {
+            return; // Let the grid handle its own wheel events
+        }
+
+        // Apply 3x faster scrolling to body
+        e.preventDefault();
+        window.scrollBy(0, e.deltaY * 3);
+    }
+
+    // Apply faster scrolling to window
+    window.addEventListener('wheel', handleWheel, { passive: false });
 
     // Setup window dragging
     if (dom.titleBar) {
@@ -79,6 +97,7 @@ import ChunkGrid from './modules/chunk-grid.js';
     Settings.init();
     Layouts.init();
     ChunkGrid.init();
+    LayoutEditor.init();
 
     setupViewButtons(dom.viewButtons, dom.viewPanels, () => {
         ChunkGrid.resetHover();
@@ -151,6 +170,8 @@ import ChunkGrid from './modules/chunk-grid.js';
             updateStatus(dom.instanceStatus, dom.tempTiles);
             ChunkGrid.syncSelectedColor(State.getState().palette);
             ChunkGrid.render();
+            LayoutEditor.syncSelectedColor(State.getState().palette);
+            LayoutEditor.render();
             Settings.render();
             Layouts.renderLayouts();
             Layouts.refreshSaveState();
@@ -159,8 +180,21 @@ import ChunkGrid from './modules/chunk-grid.js';
                 layouts: parsedData.layouts || []
             });
             Layouts.renderLayouts();
+            // Update editor if currently editing a layout
+            if (LayoutEditor.isEditing()) {
+                const currentLayoutId = LayoutEditor.getCurrentLayoutId();
+                const updatedLayout = (parsedData.layouts || []).find(l => l.id === currentLayoutId);
+                if (updatedLayout) {
+                    LayoutEditor.updateLayout(updatedLayout);
+                }
+            }
         } else if (parsedData.type === 'import_result') {
             Layouts.handleImportResult(parsedData);
+        } else if (parsedData.type === 'open_layout_editor') {
+            const layout = parsedData.layout;
+            if (layout) {
+                LayoutEditor.openEditor(layout.id, layout);
+            }
         }
     }
 

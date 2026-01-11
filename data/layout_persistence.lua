@@ -406,7 +406,143 @@ function M.getChunkLayouts(bolt)
     return chunkLayouts
 end
 
--- Merge multiple chunk layouts into a single layout
+function M.updateLayoutTile(bolt, layoutId, tileData)
+    local layoutsData = M.loadLayouts(bolt)
+
+    for _, layout in ipairs(layoutsData.layouts) do
+        if layout.id == layoutId then
+            local tiles = layout.tiles or {}
+
+            local key
+            if layout.layoutType == "chunk" then
+                key = string.format("%d_%d_%d_%d",
+                    tileData.chunkX or 0,
+                    tileData.chunkZ or 0,
+                    tileData.localX or 0,
+                    tileData.localZ or 0
+                )
+            else
+                key = string.format("%d_%d",
+                    tileData.localX or 0,
+                    tileData.localZ or 0
+                )
+            end
+
+            -- Find existing tile
+            local existingIndex = nil
+            for i, tile in ipairs(tiles) do
+                local tileKey
+                if layout.layoutType == "chunk" then
+                    tileKey = string.format("%d_%d_%d_%d",
+                        tile.chunkX or 0,
+                        tile.chunkZ or 0,
+                        tile.localX or 0,
+                        tile.localZ or 0
+                    )
+                else
+                    tileKey = string.format("%d_%d",
+                        tile.localX or 0,
+                        tile.localZ or 0
+                    )
+                end
+
+                if tileKey == key then
+                    existingIndex = i
+                    break
+                end
+            end
+
+            if existingIndex then
+                table.remove(tiles, existingIndex)
+            else
+                -- Add new tile
+                local newTile = normalizeTile(tileData)
+                if newTile then
+                    table.insert(tiles, newTile)
+                end
+            end
+
+            layout.tiles = tiles
+            M.saveLayouts(bolt, layoutsData)
+            return true
+        end
+    end
+
+    return false
+end
+
+function M.updateLayoutTileLabel(bolt, layoutId, localX, localZ, chunkX, chunkZ, label)
+    local layoutsData = M.loadLayouts(bolt)
+
+    for _, layout in ipairs(layoutsData.layouts) do
+        if layout.id == layoutId then
+            local tiles = layout.tiles or {}
+
+            -- Find the tile
+            for _, tile in ipairs(tiles) do
+                local match = false
+                if layout.layoutType == "chunk" then
+                    match = tile.localX == localX and tile.localZ == localZ and
+                            tile.chunkX == chunkX and tile.chunkZ == chunkZ
+                else
+                    match = tile.localX == localX and tile.localZ == localZ
+                end
+
+                if match then
+                    local normalized = sanitizeTileLabel(label)
+                    tile.label = normalized
+                    M.saveLayouts(bolt, layoutsData)
+                    return true
+                end
+            end
+
+            return false
+        end
+    end
+
+    return false
+end
+
+-- Adjust a tile's height in a layout
+function M.adjustLayoutTileHeight(bolt, layoutId, localX, localZ, chunkX, chunkZ, deltaSteps)
+    local HEIGHT_STEP = 25
+    local steps = tonumber(deltaSteps) or 0
+    if steps == 0 then
+        return false
+    end
+
+    local layoutsData = M.loadLayouts(bolt)
+
+    for _, layout in ipairs(layoutsData.layouts) do
+        if layout.id == layoutId then
+            local tiles = layout.tiles or {}
+
+            -- Find the tile
+            for _, tile in ipairs(tiles) do
+                local match = false
+                if layout.layoutType == "chunk" then
+                    match = tile.localX == localX and tile.localZ == localZ and
+                            tile.chunkX == chunkX and tile.chunkZ == chunkZ
+                else
+                    match = tile.localX == localX and tile.localZ == localZ
+                end
+
+                if match then
+                    local baseY = tile.worldY or 0
+                    local newY = baseY + steps * HEIGHT_STEP
+                    tile.worldY = newY
+                    M.saveLayouts(bolt, layoutsData)
+                    return true
+                end
+            end
+
+            return false
+        end
+    end
+
+    return false
+end
+
 function M.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
     if type(layoutIds) ~= "table" or #layoutIds < 2 then
         return false, "Need at least 2 layouts to merge."
@@ -433,14 +569,12 @@ function M.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
         return false, "Could not find enough layouts to merge."
     end
 
-    -- Merge all tiles, using a set to avoid duplicates
     local mergedTilesMap = {}
     local mergedTiles = {}
 
     for _, layout in ipairs(layoutsToMerge) do
         if type(layout.tiles) == "table" then
             for _, tile in ipairs(layout.tiles) do
-                -- Create unique key based on chunk coords and local coords
                 local key = string.format("%d_%d_%d_%d_%d",
                     tile.chunkX or 0,
                     tile.chunkZ or 0,
@@ -449,7 +583,6 @@ function M.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
                     tile.worldY or 0
                 )
 
-                -- Only add if not already present (first occurrence wins)
                 if not mergedTilesMap[key] then
                     mergedTilesMap[key] = true
                     local mergedTile = {
@@ -474,7 +607,6 @@ function M.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
         return false, "No tiles found in selected layouts."
     end
 
-    -- Create the new merged layout
     local id = "merged_" .. (#layoutsData.layouts + 1) .. "_" .. math.random(1000, 9999)
     local displayName = sanitizeDisplayName(newName, "Merged Layout") or "Merged Layout"
     local storageName = sanitizeStoredName(newName, displayName)
@@ -489,27 +621,31 @@ function M.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
     }
 
     mergedLayout = normalizeLayoutEntry(mergedLayout, #layoutsData.layouts + 1)
-    table.insert(layoutsData.layouts, mergedLayout)
+    local newLayoutsList = {}
 
-    -- Remove original layouts if requested
-    if not keepOriginals then
-        local newLayoutsList = {}
-        for _, layout in ipairs(layoutsData.layouts) do
-            local shouldRemove = false
+    table.insert(newLayoutsList, mergedLayout)
+
+    for _, layout in ipairs(layoutsData.layouts) do
+        local shouldRemove = false
+        if not keepOriginals then
             for _, layoutId in ipairs(layoutIds) do
                 if layout.id == layoutId then
                     shouldRemove = true
                     break
                 end
             end
-            if not shouldRemove then
-                table.insert(newLayoutsList, layout)
-            end
         end
-        layoutsData.layouts = newLayoutsList
+        if not shouldRemove then
+            table.insert(newLayoutsList, layout)
+        end
     end
 
-    local saved = M.saveLayouts(bolt, layoutsData)
+    local newLayoutsData = {
+        version = layoutsData.version,
+        layouts = newLayoutsList
+    }
+
+    local saved = M.saveLayouts(bolt, newLayoutsData)
     if not saved then
         return false, "Failed to save merged layout."
     end
