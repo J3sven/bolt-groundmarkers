@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [unreleased]
+
+## Fixed
+- When merging layouts, labels on tiles are now preserved correctly.
+
 ## [v1.8] - 2026-01-11
 
 ## Fixed

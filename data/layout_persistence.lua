@@ -452,14 +452,19 @@ function M.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
                 -- Only add if not already present (first occurrence wins)
                 if not mergedTilesMap[key] then
                     mergedTilesMap[key] = true
-                    table.insert(mergedTiles, {
+                    local mergedTile = {
                         localX = tile.localX,
                         localZ = tile.localZ,
                         worldY = tile.worldY,
                         colorIndex = tile.colorIndex,
                         chunkX = tile.chunkX,
                         chunkZ = tile.chunkZ
-                    })
+                    }
+                    local label = sanitizeTileLabel(tile.label)
+                    if label then
+                        mergedTile.label = label
+                    end
+                    table.insert(mergedTiles, mergedTile)
                 end
             end
         end
