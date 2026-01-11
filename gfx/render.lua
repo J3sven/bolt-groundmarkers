@@ -1,6 +1,6 @@
 local M = {}
-local draw = require("gfx.draw")
 local text = require("gfx.text")
+local shaders = require("gfx.shaders")
 local LABEL_PIXEL_SCALE = 0.65
 local LABEL_PIXEL_SCALE_MIN = 0.45
 local LABEL_HEIGHT_OFFSET = 20
@@ -185,6 +185,7 @@ end
 
 function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
   text.init(bolt)
+  shaders.init(bolt)
   hooks.addSwapBufferHandler("rendering", function(event)
     state.incFrame()
 
@@ -207,6 +208,8 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
     local _, playerChunkX, playerChunkZ, playerLocalX, playerLocalZ = coords.tileToRS(playerTileX, playerTileZ, py)
 
     local vx, vy, vw, vh = bolt.gameviewxywh()
+    -- Use game view dimensions for shader surface since aspixels() returns game-view-relative coords
+    shaders.setScreenDimensions(vw, vh)
 
     local instanceManager = require("core.instance_manager")
     local inInstance = instanceManager.isInInstance()
@@ -341,16 +344,16 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     for _, group in pairs(groups) do
       if #group.tiles > 0 then
-        local coloredSurface = surfaces.createColoredSurface(bolt, group.rgb, group.alpha)
-        if not coloredSurface then goto continue_color end
-
         local uniqueEdges = computeUniqueEdges(group.tiles, coords)
 
         local vHeights = buildVertexHeights(bolt, state, group.tiles, coords)
         local S = coords.TILE_SIZE
 
+        local linesToDraw = {}
+        local thickness = state.getLineThickness and state.getLineThickness() or 4
+        local r, g, b = group.rgb[1], group.rgb[2], group.rgb[3]
+        local alpha = (group.alpha or 100) * 255 / 100
         for _, e in pairs(uniqueEdges) do
-          -- Early culling: transform endpoints to screen space and check if edge is near viewport
           local k_a = vkey(e.ax, e.az)
           local k_b = vkey(e.bx, e.bz)
           local wy_a = vHeights[k_a] or 0
@@ -363,7 +366,6 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
           local sx_a, sy_a, sd_a = p3_a:transform(viewProj):aspixels()
           local sx_b, sy_b, sd_b = p3_b:transform(viewProj):aspixels()
 
-          -- Skip if both endpoints are behind camera or edge is far from viewport
           if (sd_a <= 0.0 or sd_a > 1.0) and (sd_b <= 0.0 or sd_b > 1.0) then
             goto continue_edge
           end
@@ -379,7 +381,7 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
             local wx, wz = gx * S, gz * S
             local p3 = bolt.point(wx, wy, wz)
             local sx, sy, sd = p3:transform(viewProj):aspixels()
-            table.insert(samples, {sx=sx, sy=sy, sd=sd})
+            table.insert(samples, {wx=wx, wy=wy, wz=wz, sx=sx, sy=sy, sd=sd})
           end
 
           pushSample(e.ax, e.az)
@@ -399,23 +401,31 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
               end
               local p3 = bolt.point(wx, midY, wz)
               local sx, sy, sd = p3:transform(viewProj):aspixels()
-              table.insert(samples, {sx=sx, sy=sy, sd=sd})
+              table.insert(samples, {wx=wx, wy=midY, wz=wz, sx=sx, sy=sy, sd=sd})
             end
           end
 
           pushSample(e.bx, e.bz)
 
-          local thickness = state.getLineThickness and state.getLineThickness() or 4
           for i = 1, #samples - 1 do
-            local a, b = samples[i], samples[i+1]
-            if not (a.sd <= 0.0 or a.sd > 1.0 or b.sd <= 0.0 or b.sd > 1.0) then
-              if anyEndpointInView(a.sx, a.sy, b.sx, b.sy, vx, vy, vw, vh) then
-                draw.drawLine(coloredSurface, a.sx, a.sy, b.sx, b.sy, thickness)
+            local sampleA, sampleB = samples[i], samples[i+1]
+            if not (sampleA.sd <= 0.0 or sampleA.sd > 1.0 or sampleB.sd <= 0.0 or sampleB.sd > 1.0) then
+              if anyEndpointInView(sampleA.sx, sampleA.sy, sampleB.sx, sampleB.sy, vx, vy, vw, vh) then
+                table.insert(linesToDraw, {
+                  x1 = sampleA.sx, y1 = sampleA.sy,
+                  x2 = sampleB.sx, y2 = sampleB.sy,
+                  thickness = thickness,
+                  r = r, g = g, b = b, a = alpha
+                })
               end
             end
           end
 
           ::continue_edge::
+        end
+
+        if #linesToDraw > 0 then
+          shaders.drawLinesShader(bolt, linesToDraw, vx, vy)
         end
 
         if shouldDrawLabels then
