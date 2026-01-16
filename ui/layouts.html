@@ -87,6 +87,7 @@
                     <div class="chunk-grid-controls">
                         <label for="chunk-color-select">Marker Color</label>
                         <select id="chunk-color-select" disabled></select>
+                        <button class="secondary" id="chunk-clear-button" disabled>Clear Visible</button>
                     </div>
                     <div class="chunk-grid-meta" id="chunk-grid-meta">Chunk (--, --)</div>
                     <div class="chunk-grid" id="chunk-grid"></div>
@@ -115,6 +116,7 @@
                     <div class="chunk-grid-controls">
                         <label for="editor-color-select">Tile Color</label>
                         <select id="editor-color-select" disabled></select>
+                        <button class="secondary" id="editor-clear-button" disabled>Clear Visible</button>
                     </div>
                     <div class="chunk-grid-meta" id="editor-grid-meta">Layout Editor</div>
                     <div class="chunk-grid" id="editor-grid"></div>
@@ -206,6 +208,23 @@
     </div>
 
     <div class="notification-stack" id="notification-stack"></div>
+
+    <!-- Clear Confirmation Modal -->
+    <div class="modal hidden" id="clear-confirm-modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Confirm Clear</h3>
+                <button class="modal-close" id="clear-confirm-close">×</button>
+            </div>
+            <div class="modal-body">
+                <p id="clear-confirm-message">You are about to remove tiles. Are you sure?</p>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary" id="clear-confirm-cancel">Cancel</button>
+                <button class="danger" id="clear-confirm-ok">Clear Tiles</button>
+            </div>
+        </div>
+    </div>
 
     <div class="modal hidden" id="modal-overlay">
         <div class="modal-card">

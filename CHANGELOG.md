@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [v1.11] - 2026-01-16
+
+## Added
+- Added a "clear visible" button to the chunk map and the layout editor that removes all currently visible tiles in the respective view. The chunk map button will not clear tiles from saved layouts, only those placed manually in the chunk map. The layout editor will only clear tiles from the currently edited layout that are within viewing range.
+
+## [v1.10] - 2026-01-16
+
+## Changed
+- Reworked the way instance tiles are stored and rendered, this allows us to support large instances such as elite dungeons rather than limiting to 1 chunk in size. As a consequence of this rework, older instance layouts are no longer compatible and will need to be re-created.
+
+## Fixed
+- When teleporting from one instance to another without visiting the overworld in between, instance tiles would not render correctly. This has now been fixed.
+
 ## [v1.9] - 2026-01-11
 
 ## Added

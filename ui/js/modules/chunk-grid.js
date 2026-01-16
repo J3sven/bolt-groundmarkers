@@ -12,12 +12,13 @@ const ChunkGridModule = (() => {
         container: document.getElementById('chunk-grid'),
         help: document.getElementById('chunk-grid-help'),
         meta: document.getElementById('chunk-grid-meta'),
-        colorSelect: document.getElementById('chunk-color-select')
+        colorSelect: document.getElementById('chunk-color-select'),
+        clearButton: document.getElementById('chunk-clear-button')
     };
     let zoomIndex = 0;
 
     function init() {
-        const { container, colorSelect } = elements;
+        const { container, colorSelect, clearButton } = elements;
         if (container) {
             container.addEventListener('mouseover', handleHover);
             container.addEventListener('mouseleave', handleLeave);
@@ -26,6 +27,9 @@ const ChunkGridModule = (() => {
         }
         if (colorSelect) {
             colorSelect.addEventListener('change', handleColorChange);
+        }
+        if (clearButton) {
+            clearButton.addEventListener('click', handleClearVisible);
         }
     }
 
@@ -39,6 +43,109 @@ const ChunkGridModule = (() => {
             State.setChunkSelectedColor(parsed);
             render();
         }
+    }
+
+    function handleClearVisible() {
+        if (!isInteractive()) {
+            return;
+        }
+
+        const gridData = State.getState().chunkGrid;
+        if (!gridData) {
+            return;
+        }
+
+        const chunkSize = gridData.size || 64;
+        const viewSize = getViewSize(chunkSize);
+        const playerLocalX = Number.isFinite(gridData.playerLocalX) ? gridData.playerLocalX : Math.floor(chunkSize / 2);
+        const playerLocalZ = Number.isFinite(gridData.playerLocalZ) ? gridData.playerLocalZ : Math.floor(chunkSize / 2);
+        const viewStartX = getViewportOrigin(playerLocalX, chunkSize, viewSize);
+        const viewStartZ = getViewportOrigin(playerLocalZ, chunkSize, viewSize);
+
+        // Collect all visible marked tiles (excluding those in layouts)
+        const marked = gridData.marked || [];
+        const layoutTiles = gridData.layoutTiles || [];
+        const layoutSet = new Set(
+            layoutTiles
+                .filter((tile) => typeof tile.localX === 'number' && typeof tile.localZ === 'number')
+                .map((tile) => `${tile.localX},${tile.localZ}`)
+        );
+
+        const tilesToClear = [];
+        for (const tile of marked) {
+            if (typeof tile.localX !== 'number' || typeof tile.localZ !== 'number') {
+                continue;
+            }
+
+            // Check if tile is within visible viewport
+            if (tile.localX >= viewStartX && tile.localX < viewStartX + viewSize &&
+                tile.localZ >= viewStartZ && tile.localZ < viewStartZ + viewSize) {
+
+                // Only clear if not in a layout
+                const key = `${tile.localX},${tile.localZ}`;
+                if (!layoutSet.has(key)) {
+                    tilesToClear.push({ localX: tile.localX, localZ: tile.localZ });
+                }
+            }
+        }
+
+        if (tilesToClear.length === 0) {
+            return;
+        }
+
+        // Show confirmation modal
+        showClearConfirmation(tilesToClear.length, () => {
+            Socket.sendToLua({
+                action: 'clear_visible_chunk_tiles',
+                tiles: tilesToClear,
+                scope: gridData ? gridData.mode : null
+            });
+        });
+    }
+
+    function showClearConfirmation(tileCount, onConfirm) {
+        const modal = document.getElementById('clear-confirm-modal');
+        const message = document.getElementById('clear-confirm-message');
+        const okButton = document.getElementById('clear-confirm-ok');
+        const cancelButton = document.getElementById('clear-confirm-cancel');
+        const closeButton = document.getElementById('clear-confirm-close');
+
+        if (!modal || !message || !okButton || !cancelButton || !closeButton) {
+            // Fallback if modal elements not found
+            onConfirm();
+            return;
+        }
+
+        // Set message
+        message.textContent = `You are about to remove ${tileCount} tile${tileCount !== 1 ? 's' : ''}. Are you sure?`;
+
+        // Show modal
+        modal.classList.remove('hidden');
+
+        // Handle confirm
+        const handleConfirm = () => {
+            modal.classList.add('hidden');
+            cleanup();
+            onConfirm();
+        };
+
+        // Handle cancel
+        const handleCancel = () => {
+            modal.classList.add('hidden');
+            cleanup();
+        };
+
+        // Clean up event listeners
+        const cleanup = () => {
+            okButton.removeEventListener('click', handleConfirm);
+            cancelButton.removeEventListener('click', handleCancel);
+            closeButton.removeEventListener('click', handleCancel);
+        };
+
+        // Attach event listeners
+        okButton.addEventListener('click', handleConfirm);
+        cancelButton.addEventListener('click', handleCancel);
+        closeButton.addEventListener('click', handleCancel);
     }
 
     function isInteractive() {
@@ -271,7 +378,7 @@ const ChunkGridModule = (() => {
     }
 
     function render() {
-        const { section, container, help, meta } = elements;
+        const { section, container, help, meta, clearButton } = elements;
         if (!section || !container) {
             return;
         }
@@ -286,6 +393,9 @@ const ChunkGridModule = (() => {
             }
             if (help) {
                 help.textContent = 'Chunk information unavailable.';
+            }
+            if (clearButton) {
+                clearButton.disabled = true;
             }
             resetHover(true);
             return;
@@ -333,6 +443,9 @@ const ChunkGridModule = (() => {
 
         if (!enabled) {
             container.innerHTML = '';
+            if (clearButton) {
+                clearButton.disabled = true;
+            }
             resetHover(true);
             return;
         }
@@ -359,6 +472,26 @@ const ChunkGridModule = (() => {
                 .filter((tile) => typeof tile.localX === 'number' && typeof tile.localZ === 'number')
                 .map((tile) => `${tile.localX},${tile.localZ}`)
         );
+
+        // Check if there are any clearable marked tiles (not in layouts) in viewport
+        let hasClearableTiles = false;
+        for (const tile of marked) {
+            if (typeof tile.localX !== 'number' || typeof tile.localZ !== 'number') {
+                continue;
+            }
+            if (tile.localX >= viewStartX && tile.localX < viewStartX + viewSize &&
+                tile.localZ >= viewStartZ && tile.localZ < viewStartZ + viewSize) {
+                const key = `${tile.localX},${tile.localZ}`;
+                if (!layoutSet.has(key)) {
+                    hasClearableTiles = true;
+                    break;
+                }
+            }
+        }
+
+        if (clearButton) {
+            clearButton.disabled = !hasClearableTiles;
+        }
 
         let html = '';
         for (let displayZ = 0; displayZ < viewSize; displayZ++) {

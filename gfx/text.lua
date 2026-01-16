@@ -19,14 +19,8 @@ for symbol in pairs(SPECIAL_GLYPHS) do
 end
 
 local LETTER_SPACING = 0
-
--- MUST match generator --line-height
 local LINE_HEIGHT_PX = 32
-
--- Space width as fraction of line height
 local SPACE_WIDTH = math.floor(LINE_HEIGHT_PX * 0.35 + 0.5)
-
--- Fallback if bolt doesn't provide width
 local DEFAULT_GLYPH_WIDTH = math.floor(LINE_HEIGHT_PX * 0.6 + 0.5)
 
 local function loadGlyphSurface(name)
@@ -104,9 +98,6 @@ end
 local function drawTextString(text, centerX, centerY, scale)
     local width, height = measure(text, scale)
     local cursorX = centerX - (width / 2)
-
-    -- since all glyphs share the same fixed height and baseline baked into images,
-    -- we can align everything by the same topY.
     local topY = centerY - (height / 2)
 
     for i = 1, #text do

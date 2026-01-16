@@ -15,7 +15,8 @@ const LayoutEditorModule = (() => {
         colorSelect: document.getElementById('editor-color-select'),
         title: document.getElementById('editor-title'),
         closeButton: document.getElementById('editor-close-button'),
-        viewButton: document.getElementById('editor-view-button')
+        viewButton: document.getElementById('editor-view-button'),
+        clearButton: document.getElementById('editor-clear-button')
     };
 
     let zoomIndex = 0;
@@ -25,7 +26,7 @@ const LayoutEditorModule = (() => {
     let hoverKey = null;
 
     function init() {
-        const { container, colorSelect, closeButton } = elements;
+        const { container, colorSelect, closeButton, clearButton } = elements;
         if (container) {
             container.addEventListener('mouseover', handleHover);
             container.addEventListener('mouseleave', handleLeave);
@@ -37,6 +38,9 @@ const LayoutEditorModule = (() => {
         }
         if (closeButton) {
             closeButton.addEventListener('click', closeEditor);
+        }
+        if (clearButton) {
+            clearButton.addEventListener('click', handleClearVisible);
         }
     }
 
@@ -50,6 +54,150 @@ const LayoutEditorModule = (() => {
             editorSelectedColor = parsed;
             render();
         }
+    }
+
+    function handleClearVisible() {
+        if (!currentLayoutId || !currentLayout) {
+            return;
+        }
+
+        const state = State.getState();
+        const chunkGrid = state.chunkGrid;
+        const chunkSize = 64;
+        const viewSize = getViewSize(chunkSize);
+
+        const playerLocalX = chunkGrid && Number.isFinite(chunkGrid.playerLocalX) ? chunkGrid.playerLocalX : Math.floor(chunkSize / 2);
+        const playerLocalZ = chunkGrid && Number.isFinite(chunkGrid.playerLocalZ) ? chunkGrid.playerLocalZ : Math.floor(chunkSize / 2);
+        const playerChunkX = chunkGrid && Number.isFinite(chunkGrid.chunkX) ? chunkGrid.chunkX : 0;
+        const playerChunkZ = chunkGrid && Number.isFinite(chunkGrid.chunkZ) ? chunkGrid.chunkZ : 0;
+
+        const viewStartX = getViewportOrigin(playerLocalX, chunkSize, viewSize);
+        const viewStartZ = getViewportOrigin(playerLocalZ, chunkSize, viewSize);
+
+        const isChunkLayout = currentLayout.layoutType === 'chunk';
+        const layoutTiles = currentLayout.tiles || [];
+
+        const entryChunkX = chunkGrid && Number.isFinite(chunkGrid.entryChunkX) ? chunkGrid.entryChunkX : null;
+        const entryChunkZ = chunkGrid && Number.isFinite(chunkGrid.entryChunkZ) ? chunkGrid.entryChunkZ : null;
+        const entryLocalX = chunkGrid && Number.isFinite(chunkGrid.entryLocalX) ? chunkGrid.entryLocalX : null;
+        const entryLocalZ = chunkGrid && Number.isFinite(chunkGrid.entryLocalZ) ? chunkGrid.entryLocalZ : null;
+
+        const entryAbsX = (entryChunkX !== null && entryLocalX !== null) ? (entryChunkX * 64 + entryLocalX) : null;
+        const entryAbsZ = (entryChunkZ !== null && entryLocalZ !== null) ? (entryChunkZ * 64 + entryLocalZ) : null;
+
+        const tilesToClear = [];
+
+        for (const tile of layoutTiles) {
+            let localX, localZ, tileChunkX, tileChunkZ;
+
+            if (isChunkLayout) {
+                if (!Number.isFinite(tile.localX) || !Number.isFinite(tile.localZ)) continue;
+                if (!Number.isFinite(tile.chunkX) || !Number.isFinite(tile.chunkZ)) continue;
+
+                // Only consider tiles in current chunk
+                if (tile.chunkX !== playerChunkX || tile.chunkZ !== playerChunkZ) continue;
+
+                localX = tile.localX;
+                localZ = tile.localZ;
+                tileChunkX = tile.chunkX;
+                tileChunkZ = tile.chunkZ;
+            } else {
+                // Instance layout
+                if (!Number.isFinite(tile.relativeX) || !Number.isFinite(tile.relativeZ)) continue;
+                if (entryAbsX === null || entryAbsZ === null) continue;
+
+                const absX = entryAbsX + tile.relativeX;
+                const absZ = entryAbsZ + tile.relativeZ;
+
+                tileChunkX = Math.floor(absX / 64);
+                tileChunkZ = Math.floor(absZ / 64);
+
+                // Only consider tiles in current chunk
+                if (tileChunkX !== playerChunkX || tileChunkZ !== playerChunkZ) continue;
+
+                localX = ((absX % 64) + 64) % 64;
+                localZ = ((absZ % 64) + 64) % 64;
+            }
+
+            // Check if tile is within visible viewport
+            if (localX >= viewStartX && localX < viewStartX + viewSize &&
+                localZ >= viewStartZ && localZ < viewStartZ + viewSize) {
+
+                const tileInfo = {
+                    localX,
+                    localZ
+                };
+
+                if (isChunkLayout) {
+                    tileInfo.chunkX = tileChunkX;
+                    tileInfo.chunkZ = tileChunkZ;
+                } else {
+                    // For instance layouts, include the original relative coordinates
+                    tileInfo.relativeX = tile.relativeX;
+                    tileInfo.relativeZ = tile.relativeZ;
+                }
+
+                tilesToClear.push(tileInfo);
+            }
+        }
+
+        if (tilesToClear.length === 0) {
+            return;
+        }
+
+        // Show confirmation modal
+        showClearConfirmation(tilesToClear.length, () => {
+            Socket.sendToLua({
+                action: 'clear_visible_layout_tiles',
+                layoutId: currentLayoutId,
+                tiles: tilesToClear
+            });
+        });
+    }
+
+    function showClearConfirmation(tileCount, onConfirm) {
+        const modal = document.getElementById('clear-confirm-modal');
+        const message = document.getElementById('clear-confirm-message');
+        const okButton = document.getElementById('clear-confirm-ok');
+        const cancelButton = document.getElementById('clear-confirm-cancel');
+        const closeButton = document.getElementById('clear-confirm-close');
+
+        if (!modal || !message || !okButton || !cancelButton || !closeButton) {
+            // Fallback if modal elements not found
+            onConfirm();
+            return;
+        }
+
+        // Set message
+        message.textContent = `You are about to remove ${tileCount} tile${tileCount !== 1 ? 's' : ''}. Are you sure?`;
+
+        // Show modal
+        modal.classList.remove('hidden');
+
+        // Handle confirm
+        const handleConfirm = () => {
+            modal.classList.add('hidden');
+            cleanup();
+            onConfirm();
+        };
+
+        // Handle cancel
+        const handleCancel = () => {
+            modal.classList.add('hidden');
+            cleanup();
+        };
+
+        // Clean up event listeners
+        const cleanup = () => {
+            okButton.removeEventListener('click', handleConfirm);
+            cancelButton.removeEventListener('click', handleCancel);
+            closeButton.removeEventListener('click', handleCancel);
+        };
+
+        // Attach event listeners
+        okButton.addEventListener('click', handleConfirm);
+        cancelButton.addEventListener('click', handleCancel);
+        closeButton.addEventListener('click', handleCancel);
     }
 
     function resetHover(shouldNotify) {
@@ -354,7 +502,7 @@ const LayoutEditorModule = (() => {
     }
 
     function render() {
-        const { section, container, help, meta } = elements;
+        const { section, container, help, meta, clearButton } = elements;
         if (!section || !container) {
             return;
         }
@@ -366,6 +514,9 @@ const LayoutEditorModule = (() => {
             }
             if (meta) {
                 meta.textContent = 'Layout Editor';
+            }
+            if (clearButton) {
+                clearButton.disabled = true;
             }
             return;
         }
@@ -469,6 +620,10 @@ const LayoutEditorModule = (() => {
             }
         }
 
+        // Enable/disable clear button based on whether there are visible tiles
+        if (clearButton) {
+            clearButton.disabled = markedSet.size === 0;
+        }
 
         let html = '';
         for (let displayZ = 0; displayZ < viewSize; displayZ++) {

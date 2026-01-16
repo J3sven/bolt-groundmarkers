@@ -1294,6 +1294,85 @@ function M.handleBrowserMessage(bolt, state, data)
 
     elseif data.action == "close_migration_popup" then
         M.closeMigrationPopup()
+
+    elseif data.action == "clear_visible_chunk_tiles" then
+        -- Clear visible chunk tiles (those not in layouts)
+        local tiles = data.tiles
+        if type(tiles) == "table" then
+            local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
+            local inInstance = instanceManager.isInInstance()
+            local scope
+            if inInstance and not is2x2 then
+                scope = "instance"
+            else
+                scope = "world"
+            end
+
+            local clearedCount = 0
+            for _, tile in ipairs(tiles) do
+                local localX = tonumber(tile.localX)
+                local localZ = tonumber(tile.localZ)
+                if localX and localZ then
+                    if scope == "instance" then
+                        -- Remove instance tile
+                        if instanceManager.toggleTileAtLocal(localX, localZ, nil, bolt) then
+                            clearedCount = clearedCount + 1
+                        end
+                    else
+                        -- Remove world tile
+                        local chunkInfo = instanceManager.getChunkSnapshot()
+                        if chunkInfo then
+                            local tiles = require("core.tiles")
+                            if tiles.toggleWorldTileAtChunkLocal(state, bolt, chunkInfo.chunkX, chunkInfo.chunkZ, localX, localZ, nil, nil, nil) then
+                                clearedCount = clearedCount + 1
+                            end
+                        end
+                    end
+                end
+            end
+
+            if clearedCount > 0 then
+                M.sendStateUpdate(state, bolt)
+            end
+        end
+
+    elseif data.action == "clear_visible_layout_tiles" then
+        -- Clear visible layout tiles
+        local layoutId = data.layoutId
+        local tiles = data.tiles
+        if layoutId and type(tiles) == "table" then
+            local clearedCount = 0
+            for _, tile in ipairs(tiles) do
+                local tileData = {}
+
+                -- Check if this is a chunk layout or instance layout
+                if tile.chunkX and tile.chunkZ then
+                    -- Chunk layout: use chunkX, chunkZ, localX, localZ
+                    tileData.chunkX = tonumber(tile.chunkX)
+                    tileData.chunkZ = tonumber(tile.chunkZ)
+                    tileData.localX = tonumber(tile.localX)
+                    tileData.localZ = tonumber(tile.localZ)
+                elseif tile.relativeX and tile.relativeZ then
+                    -- Instance layout: use relativeX, relativeZ
+                    tileData.relativeX = tonumber(tile.relativeX)
+                    tileData.relativeZ = tonumber(tile.relativeZ)
+                else
+                    -- Skip invalid tiles
+                    goto continue
+                end
+
+                -- Toggle the layout tile to remove it (updateLayoutTile removes if exists)
+                if layoutPersist.updateLayoutTile(bolt, layoutId, tileData) then
+                    clearedCount = clearedCount + 1
+                end
+
+                ::continue::
+            end
+
+            if clearedCount > 0 then
+                M.sendFullUpdate(bolt, state)
+            end
+        end
     end
 end
 
