@@ -144,7 +144,7 @@ const LayoutsModule = (() => {
 
             // Determine layout type from the layoutType property
             const isChunkLayout = layout.layoutType === 'chunk';
-            const layoutTypeLabel = isChunkLayout ? 'Chunk' : 'Instance';
+            const layoutTypeLabel = isChunkLayout ? 'World' : 'Instance';
             const layoutTypeClass = isChunkLayout ? 'layout-type-chunk' : 'layout-type-instance';
 
             return `

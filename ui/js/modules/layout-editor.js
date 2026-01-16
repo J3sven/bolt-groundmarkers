@@ -420,29 +420,55 @@ const LayoutEditorModule = (() => {
         const markedSet = new Set();
         const labelMap = new Map();
 
+        const entryChunkX = chunkGrid && Number.isFinite(chunkGrid.entryChunkX) ? chunkGrid.entryChunkX : null;
+        const entryChunkZ = chunkGrid && Number.isFinite(chunkGrid.entryChunkZ) ? chunkGrid.entryChunkZ : null;
+        const entryLocalX = chunkGrid && Number.isFinite(chunkGrid.entryLocalX) ? chunkGrid.entryLocalX : null;
+        const entryLocalZ = chunkGrid && Number.isFinite(chunkGrid.entryLocalZ) ? chunkGrid.entryLocalZ : null;
+
+        const entryAbsX = (entryChunkX !== null && entryLocalX !== null) ? (entryChunkX * 64 + entryLocalX) : null;
+        const entryAbsZ = (entryChunkZ !== null && entryLocalZ !== null) ? (entryChunkZ * 64 + entryLocalZ) : null;
+
         for (const tile of layoutTiles) {
-            if (typeof tile.localX !== 'number' || typeof tile.localZ !== 'number') {
-                continue;
-            }
+            let localX, localZ;
 
-            let key;
             if (isChunkLayout) {
-                // For chunk layouts, filter to current chunk only
-                if (tile.chunkX === playerChunkX && tile.chunkZ === playerChunkZ) {
-                    key = `${tile.localX},${tile.localZ}`;
-                }
+                // Chunk layouts: expect chunkX/chunkZ + localX/localZ
+                if (!Number.isFinite(tile.localX) || !Number.isFinite(tile.localZ)) continue;
+                if (!Number.isFinite(tile.chunkX) || !Number.isFinite(tile.chunkZ)) continue;
+
+                // Only show tiles for the currently viewed chunk
+                if (tile.chunkX !== playerChunkX || tile.chunkZ !== playerChunkZ) continue;
+
+                localX = tile.localX;
+                localZ = tile.localZ;
             } else {
-                // For instance layouts, show all tiles
-                key = `${tile.localX},${tile.localZ}`;
+                // Instance layouts: expect relativeX/relativeZ
+                if (!Number.isFinite(tile.relativeX) || !Number.isFinite(tile.relativeZ)) continue;
+
+                // Need entry tile to convert relative -> absolute -> local
+                if (entryAbsX === null || entryAbsZ === null) continue;
+
+                const absX = entryAbsX + tile.relativeX;
+                const absZ = entryAbsZ + tile.relativeZ;
+
+                const tileChunkX = Math.floor(absX / 64);
+                const tileChunkZ = Math.floor(absZ / 64);
+
+                // Only show tiles that land in the currently viewed chunk
+                if (tileChunkX !== playerChunkX || tileChunkZ !== playerChunkZ) continue;
+
+                localX = ((absX % 64) + 64) % 64;
+                localZ = ((absZ % 64) + 64) % 64;
             }
 
-            if (key) {
-                markedSet.add(key);
-                if (tile.label) {
-                    labelMap.set(key, tile.label);
-                }
+            const key = `${localX},${localZ}`;
+            markedSet.add(key);
+
+            if (tile.label) {
+                labelMap.set(key, tile.label);
             }
         }
+
 
         let html = '';
         for (let displayZ = 0; displayZ < viewSize; displayZ++) {
@@ -461,9 +487,32 @@ const LayoutEditorModule = (() => {
                 }
 
                 // Show player position if in same chunk (for chunk layouts) or always (for instance layouts)
-                const showPlayer = isChunkLayout
-                    ? (chunkGrid && chunkGrid.enabled && playerLocalX === localX && playerLocalZ === localZ)
-                    : (chunkGrid && chunkGrid.enabled && playerLocalX === localX && playerLocalZ === localZ);
+                let showPlayer = false;
+
+                if (chunkGrid && chunkGrid.enabled) {
+                    if (isChunkLayout) {
+                        // Chunk layouts: show only if player is in this chunk and cell
+                        showPlayer =
+                            playerLocalX === localX &&
+                            playerLocalZ === localZ;
+                    } else {
+                        // Instance layouts
+                        if (!State.getState().is2x2Instance) {
+                            // 1x1 instance: player is always in this grid
+                            showPlayer =
+                                playerLocalX === localX &&
+                                playerLocalZ === localZ;
+                        } else {
+                            // 2x2 instance: only show if viewing player's chunk
+                            showPlayer =
+                                chunkGrid.chunkX === playerChunkX &&
+                                chunkGrid.chunkZ === playerChunkZ &&
+                                playerLocalX === localX &&
+                                playerLocalZ === localZ;
+                        }
+                    }
+                }
+
 
                 if (showPlayer) {
                     classes.push('player');

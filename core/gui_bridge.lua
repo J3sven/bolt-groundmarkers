@@ -32,6 +32,50 @@ local function urlEncode(str)
     end))
 end
 
+-- Convert instance relative coords to absolute tile coords using entry tile
+local function instanceRelToAbs(instanceManager, relX, relZ)
+    local entryChunkX, entryChunkZ, entryLocalX, entryLocalZ = instanceManager.getEntryTile()
+    if not (entryChunkX and entryChunkZ and entryLocalX and entryLocalZ) then
+        return nil, nil
+    end
+    local entryTileX = entryChunkX * 64 + entryLocalX
+    local entryTileZ = entryChunkZ * 64 + entryLocalZ
+    return entryTileX + relX, entryTileZ + relZ
+end
+
+-- Convert absolute tile coords to (chunkX, chunkZ, localX, localZ)
+local function absToChunkLocal(tileX, tileZ)
+    local chunkX = math.floor(tileX / 64)
+    local chunkZ = math.floor(tileZ / 64)
+    local localX = tileX % 64
+    local localZ = tileZ % 64
+    return chunkX, chunkZ, localX, localZ
+end
+
+-- Convert a clicked chunk-local coordinate to instance relative offset.
+-- If clickChunkX/Z provided, uses it; otherwise falls back to current chunkSnapshot.
+local function clickChunkLocalToInstanceRelative(instanceManager, chunkSnapshot, localX, localZ, clickChunkX, clickChunkZ)
+    local entryChunkX, entryChunkZ, entryLocalX, entryLocalZ = instanceManager.getEntryTile()
+    if not (entryChunkX and entryChunkZ and entryLocalX and entryLocalZ) then
+        return nil, nil
+    end
+
+    local cx = clickChunkX ~= nil and clickChunkX or (chunkSnapshot and chunkSnapshot.chunkX)
+    local cz = clickChunkZ ~= nil and clickChunkZ or (chunkSnapshot and chunkSnapshot.chunkZ)
+    if cx == nil or cz == nil then
+        return nil, nil
+    end
+
+    local absX = cx * 64 + localX
+    local absZ = cz * 64 + localZ
+
+    local entryAbsX = entryChunkX * 64 + entryLocalX
+    local entryAbsZ = entryChunkZ * 64 + entryLocalZ
+
+    return absX - entryAbsX, absZ - entryAbsZ
+end
+
+
 local function sendImportResult(success, message)
     sendBrowserPayload({
         type = "import_result",
@@ -296,10 +340,17 @@ function M.sendStateUpdate(state, bolt)
     local managerState = instanceManager.getState()
 
     local chunkSnapshot = instanceManager.getChunkSnapshot()
+    local is2x2Instance = managerState.is2x2Instance or false
+
+    local gridMode = "world"
+    if managerState.inInstance then
+        gridMode = is2x2Instance and "large_instance" or "instance"
+    end
+
     local chunkGrid = {
         enabled = chunkSnapshot ~= nil,
         size = 64,
-        mode = managerState.inInstance and "instance" or "world",
+        mode = gridMode,
     }
 
     if chunkSnapshot then
@@ -309,25 +360,62 @@ function M.sendStateUpdate(state, bolt)
         chunkGrid.playerLocalZ = chunkSnapshot.localZ
         chunkGrid.floor = chunkSnapshot.floor
 
+        if managerState.inInstance then
+            local entryChunkX, entryChunkZ, entryLocalX, entryLocalZ = instanceManager.getEntryTile()
+            if entryChunkX and entryChunkZ and entryLocalX and entryLocalZ then
+                chunkGrid.entryChunkX = entryChunkX
+                chunkGrid.entryChunkZ = entryChunkZ
+                chunkGrid.entryLocalX = entryLocalX
+                chunkGrid.entryLocalZ = entryLocalZ
+            end
+        end
+
         local gridTiles = {}
         local layoutTiles = {}
 
         if managerState.inInstance then
+            -- Instance tiles: always use relative coordinates from entry tile
             local tempTiles = instanceManager.getInstanceTiles()
-            for _, tile in pairs(tempTiles) do
-                table.insert(gridTiles, {
-                    localX = tile.localX,
-                    localZ = tile.localZ,
-                    label = tile.label
-                })
+            local entryChunkX, entryChunkZ, entryLocalX, entryLocalZ = instanceManager.getEntryTile()
+
+            if entryChunkX and entryChunkZ and entryLocalX and entryLocalZ then
+                local entryTileX = entryChunkX * 64 + entryLocalX
+                local entryTileZ = entryChunkZ * 64 + entryLocalZ
+
+                for _, tile in pairs(tempTiles) do
+                    if tile.relativeX and tile.relativeZ then
+                        -- Calculate absolute tile position
+                        local tileX = entryTileX + tile.relativeX
+                        local tileZ = entryTileZ + tile.relativeZ
+
+                        -- Calculate which chunk this tile is in
+                        local tileChunkX = math.floor(tileX / 64)
+                        local tileChunkZ = math.floor(tileZ / 64)
+                        local tileLocalX = tileX % 64
+                        local tileLocalZ = tileZ % 64
+
+                        -- For 1x1 instances, include all tiles (they'll all be in the same chunk)
+                        -- For 2x2 instances, only include if in current chunk
+                        if not is2x2Instance or (tileChunkX == chunkSnapshot.chunkX and tileChunkZ == chunkSnapshot.chunkZ) then
+                            table.insert(gridTiles, {
+                                localX = tileLocalX,
+                                localZ = tileLocalZ,
+                                label = tile.label
+                            })
+                        end
+                    end
+                end
             end
         else
+            -- Overworld: filter by current chunk
             local markedTiles = state.getMarkedTiles()
             for _, tile in pairs(markedTiles) do
                 if tile.chunkX == chunkSnapshot.chunkX and tile.chunkZ == chunkSnapshot.chunkZ then
                     table.insert(gridTiles, {
                         localX = tile.localX,
                         localZ = tile.localZ,
+                        chunkX = tile.chunkX,
+                        chunkZ = tile.chunkZ,
                         label = tile.label
                     })
                 end
@@ -335,35 +423,54 @@ function M.sendStateUpdate(state, bolt)
         end
 
         -- Add tiles from active layouts in the current chunk
+        -- Add tiles from active layouts in the current chunk
         local layoutPersist = require("data.layout_persistence")
         local activeLayoutIds = managerState.activeLayoutIds or {}
+
         for _, layoutId in ipairs(activeLayoutIds) do
             local layout = layoutPersist.getLayout(bolt, layoutId)
             if layout and layout.tiles then
                 local isChunkLayout = layout.layoutType == "chunk"
 
                 for _, layoutTile in ipairs(layout.tiles) do
-                    -- For chunk layouts, check if tile is in current chunk
-                    -- For instance layouts, include all tiles when in instance
-                    local shouldInclude = false
-
-                    if isChunkLayout and not managerState.inInstance then
-                        if layoutTile.chunkX == chunkSnapshot.chunkX and layoutTile.chunkZ == chunkSnapshot.chunkZ then
-                            shouldInclude = true
+                    if isChunkLayout then
+                        -- Chunk layouts: only include tiles that are in the current chunk view
+                        if not managerState.inInstance and chunkSnapshot
+                            and layoutTile.chunkX == chunkSnapshot.chunkX
+                            and layoutTile.chunkZ == chunkSnapshot.chunkZ
+                        then
+                            table.insert(layoutTiles, {
+                                localX = layoutTile.localX,
+                                localZ = layoutTile.localZ,
+                                chunkX = layoutTile.chunkX,
+                                chunkZ = layoutTile.chunkZ
+                            })
                         end
-                    elseif not isChunkLayout and managerState.inInstance then
-                        shouldInclude = true
-                    end
+                    else
+                        -- Instance layouts: tiles are stored as relativeX/relativeZ (relative to entry tile).
+                        -- We need to show them on the current chunk grid view, so we convert to absolute then to local.
+                        if managerState.inInstance and chunkSnapshot
+                            and layoutTile.relativeX ~= nil and layoutTile.relativeZ ~= nil
+                        then
+                            local absX, absZ = instanceRelToAbs(instanceManager, layoutTile.relativeX, layoutTile.relativeZ)
+                            if absX and absZ then
+                                local tileChunkX, tileChunkZ, tileLocalX, tileLocalZ = absToChunkLocal(absX, absZ)
 
-                    if shouldInclude then
-                        table.insert(layoutTiles, {
-                            localX = layoutTile.localX,
-                            localZ = layoutTile.localZ
-                        })
+                                -- For 1x1 instances, chunkSnapshot is the only relevant chunk anyway.
+                                -- For 2x2 instances, only include if tile is in the currently viewed chunk.
+                                if (not is2x2Instance) or (tileChunkX == chunkSnapshot.chunkX and tileChunkZ == chunkSnapshot.chunkZ) then
+                                    table.insert(layoutTiles, {
+                                        localX = tileLocalX,
+                                        localZ = tileLocalZ
+                                    })
+                                end
+                            end
+                        end
                     end
                 end
             end
         end
+
 
         chunkGrid.marked = gridTiles
         chunkGrid.layoutTiles = layoutTiles
@@ -383,6 +490,7 @@ function M.sendStateUpdate(state, bolt)
     local message = {
         type = "state_update",
         inInstance = managerState.inInstance,
+        is2x2Instance = is2x2Instance,
         tempTileCount = managerState.tempTileCount,
         nonInstanceTileCount = nonInstanceTileCount,
         activeLayoutIds = managerState.activeLayoutIds or {},
@@ -699,7 +807,15 @@ function M.handleBrowserMessage(bolt, state, data)
         local localX = tonumber(data.localX)
         local localZ = tonumber(data.localZ)
         if localX and localZ then
-            local scope = data.scope or (instanceManager.isInInstance() and "instance" or "world")
+            local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
+            local inInstance = instanceManager.isInInstance()
+            -- Always calculate scope server-side, ignore frontend scope for instances
+            local scope
+            if inInstance and not is2x2 then
+                scope = "instance"  -- 1x1 instances
+            else
+                scope = "world"     -- 2x2 instances and overworld
+            end
             local requestedColorIndex = tonumber(data.colorIndex)
             if scope == "instance" then
                 local colorIndex = requestedColorIndex or (state.getCurrentColorIndex and state.getCurrentColorIndex() or 1)
@@ -734,7 +850,15 @@ function M.handleBrowserMessage(bolt, state, data)
         if not localX or not localZ then
             return
         end
-        local scope = data.scope == "instance" and "instance" or "world"
+        local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
+        local inInstance = instanceManager.isInInstance()
+        -- Always calculate scope server-side for instances
+        local scope
+        if inInstance and not is2x2 then
+            scope = "instance"
+        else
+            scope = "world"
+        end
         local chunkInfo = instanceManager.getChunkSnapshot()
         if not chunkInfo then
             return
@@ -765,8 +889,16 @@ function M.handleBrowserMessage(bolt, state, data)
             return
         end
 
-        local scope = data.scope == "instance" and "instance" or "world"
-        if scope == "instance" and instanceManager.isInInstance() then
+        local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
+        local inInstance = instanceManager.isInInstance()
+        -- Always calculate scope server-side for instances
+        local scope
+        if inInstance and not is2x2 then
+            scope = "instance"
+        else
+            scope = "world"
+        end
+        if scope == "instance" and inInstance then
             if instanceManager.setInstanceTileLabel(localX, localZ, data.label) then
                 M.sendStateUpdate(state, bolt)
             end
@@ -858,39 +990,55 @@ function M.handleBrowserMessage(bolt, state, data)
         local localZ = tonumber(data.localZ)
         local colorIndex = tonumber(data.colorIndex) or 1
 
-        if layoutId and localX and localZ then
-            local layout = layoutPersist.getLayout(bolt, layoutId)
-            if layout then
-                -- Get current chunk info for Y position
-                local chunkInfo = instanceManager.getChunkSnapshot()
-                local worldY = chunkInfo and chunkInfo.worldY or 0
+        if not (layoutId and localX and localZ) then
+            return
+        end
 
-                local tileData = {
-                    localX = localX,
-                    localZ = localZ,
-                    colorIndex = colorIndex,
-                    worldY = worldY
-                }
+        local layout = layoutPersist.getLayout(bolt, layoutId)
+        if not layout then
+            return
+        end
 
-                if layout.layoutType == "chunk" then
-                    local chunkX = tonumber(data.chunkX)
-                    local chunkZ = tonumber(data.chunkZ)
-                    if chunkX and chunkZ then
-                        tileData.chunkX = chunkX
-                        tileData.chunkZ = chunkZ
-                    else
-                        if chunkInfo then
-                            tileData.chunkX = chunkInfo.chunkX
-                            tileData.chunkZ = chunkInfo.chunkZ
-                        end
-                    end
-                end
+        -- Get current chunk info for Y position and (for instance) for coord conversion
+        local chunkInfo = instanceManager.getChunkSnapshot()
+        local worldY = chunkInfo and chunkInfo.worldY or 0
 
-                if layoutPersist.updateLayoutTile(bolt, layoutId, tileData) then
-                    M.sendFullUpdate(bolt, state)
+        local tileData = {
+            colorIndex = colorIndex,
+            worldY = worldY
+        }
+
+        if layout.layoutType == "chunk" then
+            -- Chunk layout toggles use chunkX/chunkZ + localX/localZ
+            local chunkX = tonumber(data.chunkX)
+            local chunkZ = tonumber(data.chunkZ)
+            if chunkX and chunkZ then
+                tileData.chunkX = chunkX
+                tileData.chunkZ = chunkZ
+            else
+                if chunkInfo then
+                    tileData.chunkX = chunkInfo.chunkX
+                    tileData.chunkZ = chunkInfo.chunkZ
                 end
             end
+            tileData.localX = localX
+            tileData.localZ = localZ
+        else
+            -- Instance layouts store tiles as relativeX/relativeZ.
+            local clickChunkX = tonumber(data.chunkX)
+            local clickChunkZ = tonumber(data.chunkZ)
+            local rx, rz = clickChunkLocalToInstanceRelative(instanceManager, chunkInfo, localX, localZ, clickChunkX, clickChunkZ)
+            if rx == nil or rz == nil then
+                return
+            end
+            tileData.relativeX = rx
+            tileData.relativeZ = rz
         end
+
+        if layoutPersist.updateLayoutTile(bolt, layoutId, tileData) then
+            M.sendFullUpdate(bolt, state)
+        end
+
 
     elseif data.action == "open_layout_tile_label_editor" then
         local layoutId = data.layoutId
@@ -957,13 +1105,30 @@ function M.handleBrowserMessage(bolt, state, data)
         local chunkX = tonumber(data.chunkX)
         local chunkZ = tonumber(data.chunkZ)
 
-        if not layoutId or not localX or not localZ then
+        if not (layoutId and localX and localZ) then
             return
+        end
+
+        local layout = layoutPersist.getLayout(bolt, layoutId)
+        if not layout then
+            return
+        end
+
+        if layout.layoutType == "instance" then
+            local chunkInfo = instanceManager.getChunkSnapshot()
+            local rx, rz = clickChunkLocalToInstanceRelative(instanceManager, chunkInfo, localX, localZ, chunkX, chunkZ)
+            if rx == nil or rz == nil then
+                return
+            end
+            -- Persistence expects "localX/localZ" params, but for instance layouts those represent relative offsets now.
+            localX, localZ = rx, rz
+            chunkX, chunkZ = nil, nil
         end
 
         if layoutPersist.updateLayoutTileLabel(bolt, layoutId, localX, localZ, chunkX, chunkZ, data.label) then
             M.sendFullUpdate(bolt, state)
         end
+
 
     elseif data.action == "adjust_layout_tile_height" then
         local layoutId = data.layoutId
@@ -973,7 +1138,7 @@ function M.handleBrowserMessage(bolt, state, data)
         local chunkZ = tonumber(data.chunkZ)
         local direction = tonumber(data.direction)
 
-        if not layoutId or not localX or not localZ or not direction or direction == 0 then
+        if not (layoutId and localX and localZ and direction and direction ~= 0) then
             return
         end
 
@@ -981,6 +1146,22 @@ function M.handleBrowserMessage(bolt, state, data)
             direction = 1
         elseif direction < 0 then
             direction = -1
+        end
+
+        local layout = layoutPersist.getLayout(bolt, layoutId)
+        if not layout then
+            return
+        end
+
+        if layout.layoutType == "instance" then
+            local chunkInfo = instanceManager.getChunkSnapshot()
+            local rx, rz = clickChunkLocalToInstanceRelative(instanceManager, chunkInfo, localX, localZ, chunkX, chunkZ)
+            if rx == nil or rz == nil then
+                return
+            end
+            -- For instance layouts, persistence matches by relative offsets in the "localX/localZ" params.
+            localX, localZ = rx, rz
+            chunkX, chunkZ = nil, nil
         end
 
         if layoutPersist.adjustLayoutTileHeight(bolt, layoutId, localX, localZ, chunkX, chunkZ, direction) then
@@ -1025,7 +1206,15 @@ function M.handleBrowserMessage(bolt, state, data)
             direction = -1
         end
 
-        local scope = data.scope or (instanceManager.isInInstance() and "instance" or "world")
+        local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
+        local inInstance = instanceManager.isInInstance()
+        -- Always calculate scope server-side for instances
+        local scope
+        if inInstance and not is2x2 then
+            scope = "instance"
+        else
+            scope = "world"
+        end
         if scope == "instance" then
             if instanceManager.adjustInstanceTileHeight(localX, localZ, direction, bolt) then
                 M.sendStateUpdate(state, bolt)

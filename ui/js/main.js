@@ -143,6 +143,7 @@ import LayoutEditor from './modules/layout-editor.js';
             const previousState = State.getState();
             State.setState({
                 inInstance: parsedData.inInstance,
+                is2x2Instance: parsedData.is2x2Instance || false,
                 tempTileCount: parsedData.tempTileCount,
                 nonInstanceTileCount: parsedData.nonInstanceTileCount || 0,
                 activeLayoutIds: parsedData.activeLayoutIds || [],
@@ -201,8 +202,16 @@ import LayoutEditor from './modules/layout-editor.js';
     function updateStatus(statusEl, tilesEl) {
         const state = State.getState();
         if (statusEl) {
-            statusEl.textContent = state.inInstance ? 'In Instance' : 'Not in Instance';
-            statusEl.className = 'status-value' + (state.inInstance ? '' : ' warning');
+            let statusText = 'Not in Instance';
+            let isWarning = true;
+
+            if (state.inInstance) {
+                statusText = state.is2x2Instance ? 'In Large Instance' : 'In Instance';
+                isWarning = false;
+            }
+
+            statusEl.textContent = statusText;
+            statusEl.className = 'status-value' + (isWarning ? ' warning' : '');
         }
 
         if (tilesEl) {

@@ -3,6 +3,7 @@
 const StateModule = (() => {
     const currentState = {
         inInstance: false,
+        is2x2Instance: false,
         tempTileCount: 0,
         nonInstanceTileCount: 0,
         activeLayoutIds: [],

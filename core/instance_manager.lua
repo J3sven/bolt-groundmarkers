@@ -7,6 +7,7 @@ local LABEL_MAX_LEN = 18
 
 local state = {
     inInstance = false,
+    is2x2Instance = false,
     activeLayoutIds = {},
     instanceTiles = {},
     currentChunkX = nil,
@@ -16,10 +17,25 @@ local state = {
     playerFloor = nil,
     playerWorldY = 0,
     hoverPreview = nil,
+    -- Track visited chunks in 2x2 instances to detect 2x2
+    visitedChunks2x2 = {},
+    -- Entry tile for instances (origin point for 2x2 layout coordinates)
+    entryChunkX = nil,
+    entryChunkZ = nil,
+    entryLocalX = nil,
+    entryLocalZ = nil,
 }
 
 local function isInInstanceChunk(chunkX)
     return chunkX > 100 or chunkX < -100
+end
+
+-- Check if two chunks are directly adjacent (differ by exactly 1 in X or Z, not both)
+local function areChunksAdjacent(cx1, cz1, cx2, cz2)
+    local dx = math.abs(cx1 - cx2)
+    local dz = math.abs(cz1 - cz2)
+    -- Adjacent if exactly 1 apart in one dimension and 0 in the other, or 1 in both (diagonal)
+    return (dx == 1 and dz == 0) or (dx == 0 and dz == 1) or (dx == 1 and dz == 1)
 end
 
 local function trimString(value)
@@ -81,6 +97,9 @@ function M.update(bolt)
     state.inInstance = isInInstanceChunk(chunkX)
 
     local chunkChanged = state.currentChunkX ~= chunkX or state.currentChunkZ ~= chunkZ
+    local previousChunkX = state.currentChunkX
+    local previousChunkZ = state.currentChunkZ
+
     state.currentChunkX = chunkX
     state.currentChunkZ = chunkZ
     state.playerLocalX = localX
@@ -93,18 +112,67 @@ function M.update(bolt)
     end
 
     if state.inInstance and not wasInInstance then
+        -- Entering instance fresh
         state.instanceTiles = {}
         state.hoverPreview = nil
+        state.visitedChunks2x2 = {}
+        state.is2x2Instance = false
+
+        -- Store entry tile (chunk + local) as the origin point for this instance
+        state.entryChunkX = chunkX
+        state.entryChunkZ = chunkZ
+        state.entryLocalX = localX
+        state.entryLocalZ = localZ
+
+        -- Track first chunk
+        local chunkKey = chunkX .. "," .. chunkZ
+        state.visitedChunks2x2[chunkKey] = true
     end
 
     if not state.inInstance and wasInInstance then
+        -- Leaving instance
         state.instanceTiles = {}
         state.hoverPreview = nil
+        state.visitedChunks2x2 = {}
+        state.is2x2Instance = false
+        state.entryChunkX = nil
+        state.entryChunkZ = nil
+        state.entryLocalX = nil
+        state.entryLocalZ = nil
+    end
+
+    -- Detect 2x2 instance when crossing to adjacent chunk
+    if state.inInstance and chunkChanged and previousChunkX and previousChunkZ then
+        local chunkKey = chunkX .. "," .. chunkZ
+
+        -- Check if new chunk is adjacent to any previously visited chunk
+        local isAdjacentToVisited = false
+        for visitedKey, _ in pairs(state.visitedChunks2x2) do
+            local vcx, vcz = visitedKey:match("([^,]+),([^,]+)")
+            vcx = tonumber(vcx)
+            vcz = tonumber(vcz)
+
+            if vcx and vcz and areChunksAdjacent(chunkX, chunkZ, vcx, vcz) then
+                isAdjacentToVisited = true
+                break
+            end
+        end
+
+        if isAdjacentToVisited then
+            state.is2x2Instance = true
+        end
+
+        -- Track this chunk
+        state.visitedChunks2x2[chunkKey] = true
     end
 end
 
 function M.isInInstance()
     return state.inInstance
+end
+
+function M.is2x2Instance()
+    return state.is2x2Instance
 end
 
 function M.getActiveLayoutIds()
@@ -179,6 +247,7 @@ end
 function M.getState()
     return {
         inInstance = state.inInstance,
+        is2x2Instance = state.is2x2Instance,
         activeLayoutIds = state.activeLayoutIds,
         tempTileCount = M.getInstanceTileCount()
     }
@@ -197,6 +266,35 @@ function M.getChunkSnapshot()
         floor = state.playerFloor or 0,
         worldY = state.playerWorldY or 0
     }
+end
+
+-- Get the entry tile (first tile visited in this instance session)
+-- This is used as the origin point for 2x2 layouts
+function M.getEntryTile()
+    return state.entryChunkX, state.entryChunkZ, state.entryLocalX, state.entryLocalZ
+end
+
+-- Calculate base chunk (minimum coords) from all visited chunks (for tile placement)
+local function getBaseChunk2x2()
+    local minChunkX = nil
+    local minChunkZ = nil
+
+    for chunkKey, _ in pairs(state.visitedChunks2x2) do
+        local cx, cz = chunkKey:match("([^,]+),([^,]+)")
+        cx = tonumber(cx)
+        cz = tonumber(cz)
+
+        if cx and cz then
+            if not minChunkX or cx < minChunkX then
+                minChunkX = cx
+            end
+            if not minChunkZ or cz < minChunkZ then
+                minChunkZ = cz
+            end
+        end
+    end
+
+    return minChunkX, minChunkZ
 end
 
 local function clampLocalCoord(value)
@@ -309,14 +407,24 @@ function M.toggleTileAtLocal(localX, localZ, colorIndex, bolt)
         z = worldZ,
         y = state.playerWorldY or 0,
         colorIndex = safeColorIndex,
-        chunkX = chunkX,
-        chunkZ = chunkZ,
-        localX = localX,
-        localZ = localZ,
         floor = state.playerFloor or 0,
         tileX = tileX,
         tileZ = tileZ
     }
+
+    -- Always store coordinates RELATIVE to entry tile for all instances
+    -- This way tiles placed before 2x2 detection still work correctly
+    if state.entryChunkX and state.entryChunkZ and state.entryLocalX and state.entryLocalZ then
+        -- Calculate entry tile position
+        local entryTileX = state.entryChunkX * 64 + state.entryLocalX
+        local entryTileZ = state.entryChunkZ * 64 + state.entryLocalZ
+
+        -- Store relative offset from entry tile
+        -- For 1x1 instances, these will be in 0-63 range
+        -- For 2x2 instances, these can be larger
+        tileData.relativeX = tileX - entryTileX
+        tileData.relativeZ = tileZ - entryTileZ
+    end
 
     M.addInstanceTile(tileData)
 

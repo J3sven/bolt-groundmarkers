@@ -256,6 +256,7 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
           local localX = layoutTile.localX
           local localZ = layoutTile.localZ
           local isChunkLayout = layout.layoutType == "chunk"
+          local is2x2Layout = layout.is2x2 or false
 
           if isChunkLayout then
             if not inInstance and layoutTile.chunkX ~= nil and layoutTile.chunkZ ~= nil then
@@ -285,8 +286,47 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
                 table.insert(tilesToRender, transformedTile)
               end
             end
-          else
-            if inInstance then
+          elseif not isChunkLayout and inInstance then
+            -- Instance layouts: check if tiles have relative coordinates
+            if layoutTile.relativeX ~= nil and layoutTile.relativeZ ~= nil then
+              -- Modern instance layouts (both 1x1 and 2x2): use relative coordinates from entry tile
+              local entryChunkX, entryChunkZ, entryLocalX, entryLocalZ = instanceManager.getEntryTile()
+
+              if entryChunkX and entryChunkZ and entryLocalX and entryLocalZ then
+                -- Calculate entry tile position
+                local entryTileX = entryChunkX * 64 + entryLocalX
+                local entryTileZ = entryChunkZ * 64 + entryLocalZ
+
+                -- Calculate absolute tile position from relative offset
+                local layoutTileX = entryTileX + layoutTile.relativeX
+                local layoutTileZ = entryTileZ + layoutTile.relativeZ
+
+                local tileDx = math.abs(layoutTileX - playerTileX)
+                local tileDz = math.abs(layoutTileZ - playerTileZ)
+
+                -- Render tiles within 128 tiles (supports both 1x1 and 2x2)
+                if tileDx <= 128 and tileDz <= 128 then
+                  local worldX, worldZ = coords.tileToWorldCoords(layoutTileX, layoutTileZ)
+
+                  local transformedTile = {
+                    x = worldX,
+                    z = worldZ,
+                    y = layoutTile.worldY,
+                    colorIndex = layoutTile.colorIndex,
+                    localX = layoutTileX % 64,
+                    localZ = layoutTileZ % 64,
+                    floor = 0,
+                    tileX = layoutTileX,
+                    tileZ = layoutTileZ,
+                    label = layoutTile.label
+                  }
+
+                  table.insert(tilesToRender, transformedTile)
+                end
+              end
+            elseif localX ~= nil and localZ ~= nil then
+              -- Legacy 1x1 instance layouts: use transform-to-player rendering
+              print("Warning: Legacy instance layout tile without relative coordinates detected. Using transform-to-player rendering.")
               local newTileX = playerChunkX * 64 + localX
               local newTileZ = playerChunkZ * 64 + localZ
               local newWorldX, newWorldZ = coords.tileToWorldCoords(newTileX, newTileZ)
@@ -315,8 +355,36 @@ function M.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
     if inInstance then
       local tempTiles = instanceManager.getInstanceTiles()
+      local entryChunkX, entryChunkZ, entryLocalX, entryLocalZ = instanceManager.getEntryTile()
+
       for _, t in pairs(tempTiles) do
-        table.insert(tilesToRender, t)
+        -- Check if tile has relative coordinates that need recalculating
+        if t.relativeX and t.relativeZ and entryChunkX and entryChunkZ and entryLocalX and entryLocalZ then
+          -- Recalculate world position from relative coordinates
+          local entryTileX = entryChunkX * 64 + entryLocalX
+          local entryTileZ = entryChunkZ * 64 + entryLocalZ
+
+          local tileTileX = entryTileX + t.relativeX
+          local tileTileZ = entryTileZ + t.relativeZ
+
+          local worldX, worldZ = coords.tileToWorldCoords(tileTileX, tileTileZ)
+
+          -- Create corrected tile for rendering
+          local correctedTile = {
+            x = worldX,
+            z = worldZ,
+            y = t.y,
+            colorIndex = t.colorIndex,
+            floor = t.floor,
+            tileX = tileTileX,
+            tileZ = tileTileZ,
+            label = t.label
+          }
+          table.insert(tilesToRender, correctedTile)
+        else
+          -- Legacy tiles without relative coords
+          table.insert(tilesToRender, t)
+        end
       end
     end
 
