@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instance Layout Update</title>
+    <link rel="stylesheet" href="css/nis.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* Center the migration popup on the gameview */
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(4, 8, 12, 0.92);
+            padding: 0;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .nisborder-fixed {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-width: 4px;
+            border-style: solid;
+            border-image: url('./css/sprites/borderSprite.png') 4 repeat;
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        .migration-container {
+            width: min(540px, 100%);
+            background: rgba(12, 16, 24, 0.98);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            padding: 20px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .migration-header {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .migration-icon {
+            font-size: 40px;
+            margin-bottom: 8px;
+        }
+
+        .migration-header h1 {
+            font-size: 20px;
+            margin-bottom: 6px;
+            color: var(--nis-col-std, #e0e0e0);
+        }
+
+        .migration-header .version-badge {
+            display: inline-block;
+            background: rgba(42, 121, 156, 0.3);
+            color: #6bc4e8;
+            border: 1px solid rgba(42, 121, 156, 0.5);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .migration-body {
+            margin-bottom: 0;
+        }
+
+        .warning-box {
+            background: rgba(255, 200, 0, 0.12);
+            border: 1px solid rgba(255, 200, 0, 0.4);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .warning-box h3 {
+            color: #ffd966;
+            font-size: 14px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .warning-box p {
+            color: #fff4d2;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .info-list {
+            background: rgba(0, 0, 0, 0.25);
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid rgba(42, 121, 156, 0.6);
+            margin-bottom: 14px;
+        }
+
+        .info-list ul {
+            margin: 0;
+            padding-left: 20px;
+            color: var(--nis-col-std, #e0e0e0);
+        }
+
+        .info-list li {
+            font-size: 13px;
+            line-height: 1.6;
+            margin-bottom: 4px;
+        }
+
+        .info-list li:last-child {
+            margin-bottom: 0;
+        }
+
+        .migration-question {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--nis-col-std, #e0e0e0);
+            margin-bottom: 14px;
+            text-align: center;
+        }
+
+        .migration-actions {
+            display: flex;
+            gap: 10px;
+            flex-direction: row;
+            margin-bottom: 10px;
+        }
+
+        .migration-actions button {
+            flex: 1;
+            padding: 12px 16px;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .migration-actions button.primary {
+            background: linear-gradient(180deg, #2a799c, #123443 85%);
+        }
+
+        .migration-actions button.danger {
+            background: linear-gradient(180deg, #80331f, #5a1406 85%);
+            border-color: #8c3a25;
+        }
+
+        .migration-actions button.secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .footer-note {
+            margin-top: 0;
+            text-align: center;
+            font-size: 11px;
+            color: var(--nis-col-low, #888);
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body class="nis gm-ui">
+    <div class="nisborder-fixed"></div>
+    <div class="migration-container">
+        <div class="migration-header">
+            <div class="migration-icon">⚠️</div>
+            <h1>Ground Markers: Important Update</h1>
+            <span class="version-badge">v1.10</span>
+        </div>
+
+        <div class="migration-body">
+            <div class="warning-box">
+                <h3>Instance Layout System Updated</h3>
+                <p>
+                    The way instance layouts are stored has been improved to support large instances (e.g., Elite Dungeons).
+                    Unfortunately, this means existing instance layouts are incompatible with this version.
+                </p>
+            </div>
+
+            <div class="info-list">
+                <ul>
+                    <li>Non-instance world layouts are <strong>NOT affected</strong>.</li>
+                    <li>Your existing instance layouts <strong>need to be recreated</strong>.</li>
+                    <li>You can delete old instance layouts now or manually later</li>
+                </ul>
+            </div>
+
+            <p class="migration-question">Would you like to delete incompatible instance layouts now?</p>
+
+            <div class="migration-actions">
+                <button class="danger" id="delete-button">
+                    Delete Instance Layouts
+                </button>
+                <button class="secondary" id="keep-button">
+                    Keep For Now
+                </button>
+            </div>
+
+            <p class="footer-note">
+                Chunk layouts will be preserved regardless of your choice
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const deleteButton = document.getElementById('delete-button');
+        const keepButton = document.getElementById('keep-button');
+
+        // Handle delete instance layouts
+        deleteButton.addEventListener('click', () => {
+            fetch('https://bolt-api/send-message', {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'migration_delete_instance_layouts',
+                    autoDelete: true
+                })
+            }).catch(err => console.error('Failed to send migration action:', err));
+
+            // Close the migration popup
+            setTimeout(() => {
+                fetch('https://bolt-api/send-message', {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'close_migration_popup' })
+                }).catch(err => console.error('Failed to close migration popup:', err));
+            }, 100);
+        });
+
+        // Handle keep layouts (user will delete manually)
+        keepButton.addEventListener('click', () => {
+            fetch('https://bolt-api/send-message', {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'migration_delete_instance_layouts',
+                    autoDelete: false
+                })
+            }).catch(err => console.error('Failed to send migration action:', err));
+
+            // Close the migration popup
+            setTimeout(() => {
+                fetch('https://bolt-api/send-message', {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'close_migration_popup' })
+                }).catch(err => console.error('Failed to close migration popup:', err));
+            }, 100);
+        });
+
+        // Handle Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                keepButton.click();
+            }
+        });
+    </script>
+</body>
+</html>

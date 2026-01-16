@@ -7,6 +7,7 @@ local persistence = require("data.persistence")
 
 local browser = nil
 local launcherBrowser = nil
+local migrationBrowser = nil
 local isOpen = false
 local lastUpdateFrame = 0
 local updateInterval = 60
@@ -145,6 +146,7 @@ function M.init(bolt)
     browser = nil
     launcherBrowser = nil
     overlayBrowser = nil
+    migrationBrowser = nil
     isOpen = false
     lastUpdateFrame = 0
     loadconfig(bolt)
@@ -258,6 +260,48 @@ function M.closeLauncher()
     if launcherBrowser then
         launcherBrowser:close()
         launcherBrowser = nil
+    end
+end
+
+-- Open migration popup centered on gameview
+function M.openMigrationPopup(bolt, state)
+    if migrationBrowser then
+        return
+    end
+
+    cachedBolt = bolt
+    cachedState = state
+
+    local vx, vy, vw, vh = bolt.gameviewxywh()
+    local popupWidth = 540
+    local popupHeight = 500
+    local popupX = vx + (vw - popupWidth) / 2
+    local popupY = vy + (vh - popupHeight) / 2
+
+    migrationBrowser = bolt.createembeddedbrowser(
+        popupX,
+        popupY,
+        popupWidth,
+        popupHeight,
+        "plugin://ui/instance-migration.html"
+    )
+
+    migrationBrowser:onmessage(function(msg)
+        local data = json.decode(msg)
+        if data then
+            M.handleBrowserMessage(cachedBolt, cachedState, data)
+        end
+    end)
+
+    migrationBrowser:oncloserequest(function()
+        M.closeMigrationPopup()
+    end)
+end
+
+function M.closeMigrationPopup()
+    if migrationBrowser then
+        migrationBrowser:close()
+        migrationBrowser = nil
     end
 end
 
@@ -1236,6 +1280,20 @@ function M.handleBrowserMessage(bolt, state, data)
                 end
             end
         end
+
+    elseif data.action == "migration_delete_instance_layouts" then
+        local versionTracker = require("core.version_tracker")
+
+        if data.autoDelete then
+            local deletedCount, keptCount = layoutPersist.deleteAllInstanceLayouts(bolt)
+            instanceManager.clearActiveLayouts()
+            M.sendFullUpdate(bolt, state)
+        end
+
+        versionTracker.markMigrationShown(bolt)
+
+    elseif data.action == "close_migration_popup" then
+        M.closeMigrationPopup()
     end
 end
 

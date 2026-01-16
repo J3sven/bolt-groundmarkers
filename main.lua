@@ -13,37 +13,38 @@ local hooks = require("core.hooks")
 local instanceManager = require("core.instance_manager")
 local guiBridge = require("core.gui_bridge")
 
--- Initialize color palette before other modules consume it
 colors.init(bolt)
 
--- Initialize core modules
 state.init({ bolt = bolt, colors = colors, coords = coords })
 state.setMarkerSurface(surfaces.createMarkerSurface(bolt))
 persist.loadMarkers(state, bolt)
-
--- Initialize hooks FIRST
 hooks.init(bolt)
 
--- Initialize instance manager
 instanceManager.init(bolt)
 
--- Initialize GUI bridge
 guiBridge.init(bolt)
 
--- Set up rendering hooks
 render.hookRender3D(state, bolt, hooks)
 render.hookSwapBuffers(state, bolt, surfaces, colors, hooks)
 
--- Add instance manager update and GUI update to swap buffer handler
 hooks.addSwapBufferHandler("instance_manager", function(event)
     instanceManager.update(bolt)
-    -- Also periodically update GUI
     local currentFrame = state.getFrame and state.getFrame() or 0
     guiBridge.periodicUpdate(bolt, state, currentFrame)
 end)
 
--- Set up input bindings
 input.bind(state, bolt, tiles, colors)
 
--- Open the launcher button on startup (persistent mini window)
 guiBridge.openLauncher(bolt, state)
+
+-- Check if we need to show the migration popup for instance layouts
+local versionTracker = require("core.version_tracker")
+if versionTracker.needsInstanceLayoutMigration(bolt) and not versionTracker.migrationAlreadyShown(bolt) then
+    hooks.addSwapBufferHandler("migration_popup_delay", function(event)
+        hooks.removeSwapBufferHandler("migration_popup_delay")
+        guiBridge.openMigrationPopup(bolt, state)
+    end)
+else
+    versionTracker.saveVersion(bolt)
+    versionTracker.saveVersion(bolt)
+end

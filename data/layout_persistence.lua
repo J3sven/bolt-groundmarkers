@@ -827,4 +827,27 @@ function M.mergeLayouts(bolt, layoutIds, newName, keepOriginals)
     return true, mergedLayout
 end
 
+-- Delete all instance layouts while preserving chunk layouts
+-- Used for migration after breaking changes to instance layout format
+function M.deleteAllInstanceLayouts(bolt)
+    local layoutsData = M.loadLayouts(bolt)
+    local originalCount = #layoutsData.layouts
+    local newLayouts = {}
+    local deletedCount = 0
+
+    -- Keep only chunk layouts
+    for _, layout in ipairs(layoutsData.layouts) do
+        if layout.layoutType == "chunk" then
+            table.insert(newLayouts, layout)
+        else
+            deletedCount = deletedCount + 1
+        end
+    end
+
+    layoutsData.layouts = newLayouts
+    M.saveLayouts(bolt, layoutsData)
+
+    return deletedCount, originalCount - deletedCount
+end
+
 return M

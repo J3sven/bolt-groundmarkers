@@ -1,6 +1,6 @@
 {
   "name": "Ground Markers",
-  "version": "1.9",
+  "version": "1.10",
   "description": "A plugin that allows players to place and manage custom markers on tiles within the game environment.",
   "main": "main.lua"
 }
