@@ -100,6 +100,18 @@ function M.update(bolt)
     local previousChunkX = state.currentChunkX
     local previousChunkZ = state.currentChunkZ
 
+    -- Detect instance-to-instance teleport: large chunk jump while in instance
+    -- Adjacent chunks differ by 1, teleports jump much further (typically 100+)
+    local isTeleportBetweenInstances = false
+    if state.inInstance and wasInInstance and chunkChanged and previousChunkX and previousChunkZ then
+        local chunkDeltaX = math.abs(chunkX - previousChunkX)
+        local chunkDeltaZ = math.abs(chunkZ - previousChunkZ)
+        -- If chunk jump is larger than adjacent (> 1), it's a teleport
+        if chunkDeltaX > 1 or chunkDeltaZ > 1 then
+            isTeleportBetweenInstances = true
+        end
+    end
+
     state.currentChunkX = chunkX
     state.currentChunkZ = chunkZ
     state.playerLocalX = localX
@@ -112,7 +124,7 @@ function M.update(bolt)
     end
 
     if state.inInstance and not wasInInstance then
-        -- Entering instance fresh
+        -- Entering instance from surface
         state.instanceTiles = {}
         state.hoverPreview = nil
         state.visitedChunks2x2 = {}
@@ -129,8 +141,27 @@ function M.update(bolt)
         state.visitedChunks2x2[chunkKey] = true
     end
 
+    if isTeleportBetweenInstances then
+        -- Teleporting between instances (skipping surface)
+        -- Clear instance state and reinitialize as if entering fresh
+        state.instanceTiles = {}
+        state.hoverPreview = nil
+        state.visitedChunks2x2 = {}
+        state.is2x2Instance = false
+
+        -- Reset entry tile for new instance
+        state.entryChunkX = chunkX
+        state.entryChunkZ = chunkZ
+        state.entryLocalX = localX
+        state.entryLocalZ = localZ
+
+        -- Track first chunk of new instance
+        local chunkKey = chunkX .. "," .. chunkZ
+        state.visitedChunks2x2[chunkKey] = true
+    end
+
     if not state.inInstance and wasInInstance then
-        -- Leaving instance
+        -- Leaving instance to surface
         state.instanceTiles = {}
         state.hoverPreview = nil
         state.visitedChunks2x2 = {}
@@ -141,8 +172,8 @@ function M.update(bolt)
         state.entryLocalZ = nil
     end
 
-    -- Detect 2x2 instance when crossing to adjacent chunk
-    if state.inInstance and chunkChanged and previousChunkX and previousChunkZ then
+    -- Detect 2x2 instance when crossing to adjacent chunk (normal walking, not teleport)
+    if state.inInstance and chunkChanged and previousChunkX and previousChunkZ and not isTeleportBetweenInstances then
         local chunkKey = chunkX .. "," .. chunkZ
 
         -- Check if new chunk is adjacent to any previously visited chunk
