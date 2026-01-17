@@ -934,15 +934,9 @@ function M.handleBrowserMessage(bolt, state, data)
         local localX = tonumber(data.localX)
         local localZ = tonumber(data.localZ)
         if localX and localZ then
-            local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
             local inInstance = instanceManager.isInInstance()
             -- Always calculate scope server-side, ignore frontend scope for instances
-            local scope
-            if inInstance and not is2x2 then
-                scope = "instance"  -- 1x1 instances
-            else
-                scope = "world"     -- 2x2 instances and overworld
-            end
+            local scope = inInstance and "instance" or "world"
             local requestedColorIndex = tonumber(data.colorIndex)
             if scope == "instance" then
                 local colorIndex = requestedColorIndex or (state.getCurrentColorIndex and state.getCurrentColorIndex() or 1)
@@ -977,15 +971,9 @@ function M.handleBrowserMessage(bolt, state, data)
         if not localX or not localZ then
             return
         end
-        local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
         local inInstance = instanceManager.isInInstance()
         -- Always calculate scope server-side for instances
-        local scope
-        if inInstance and not is2x2 then
-            scope = "instance"
-        else
-            scope = "world"
-        end
+        local scope = inInstance and "instance" or "world"
         local chunkInfo = instanceManager.getChunkSnapshot()
         if not chunkInfo then
             return
@@ -1016,15 +1004,9 @@ function M.handleBrowserMessage(bolt, state, data)
             return
         end
 
-        local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
         local inInstance = instanceManager.isInInstance()
         -- Always calculate scope server-side for instances
-        local scope
-        if inInstance and not is2x2 then
-            scope = "instance"
-        else
-            scope = "world"
-        end
+        local scope = inInstance and "instance" or "world"
         if scope == "instance" and inInstance then
             if instanceManager.setInstanceTileLabel(localX, localZ, data.label) then
                 M.sendStateUpdate(state, bolt)
@@ -1183,6 +1165,8 @@ function M.handleBrowserMessage(bolt, state, data)
 
         local isChunkLayout = layout.layoutType == "chunk"
         local chunkX, chunkZ
+        local relativeX = tonumber(data.relativeX)
+        local relativeZ = tonumber(data.relativeZ)
 
         if isChunkLayout then
             chunkX = tonumber(data.chunkX)
@@ -1219,6 +1203,10 @@ function M.handleBrowserMessage(bolt, state, data)
             query = query .. string.format("&chunkX=%d&chunkZ=%d", chunkX, chunkZ)
         end
 
+        if not isChunkLayout and relativeX and relativeZ then
+            query = query .. string.format("&relativeX=%d&relativeZ=%d", relativeX, relativeZ)
+        end
+
         if existingLabel and existingLabel ~= "" then
             query = query .. "&label=" .. urlEncode(existingLabel)
         end
@@ -1242,14 +1230,21 @@ function M.handleBrowserMessage(bolt, state, data)
         end
 
         if layout.layoutType == "instance" then
-            local chunkInfo = instanceManager.getChunkSnapshot()
-            local rx, rz = clickChunkLocalToInstanceRelative(instanceManager, chunkInfo, localX, localZ, chunkX, chunkZ)
-            if rx == nil or rz == nil then
-                return
+            local relX = tonumber(data.relativeX)
+            local relZ = tonumber(data.relativeZ)
+            if relX and relZ then
+                localX = relX
+                localZ = relZ
+                chunkX, chunkZ = nil, nil
+            else
+                local chunkInfo = instanceManager.getChunkSnapshot()
+                local rx, rz = clickChunkLocalToInstanceRelative(instanceManager, chunkInfo, localX, localZ, chunkX, chunkZ)
+                if rx == nil or rz == nil then
+                    return
+                end
+                localX, localZ = rx, rz
+                chunkX, chunkZ = nil, nil
             end
-            -- Persistence expects "localX/localZ" params, but for instance layouts those represent relative offsets now.
-            localX, localZ = rx, rz
-            chunkX, chunkZ = nil, nil
         end
 
         if layoutPersist.updateLayoutTileLabel(bolt, layoutId, localX, localZ, chunkX, chunkZ, data.label) then
@@ -1281,14 +1276,21 @@ function M.handleBrowserMessage(bolt, state, data)
         end
 
         if layout.layoutType == "instance" then
-            local chunkInfo = instanceManager.getChunkSnapshot()
-            local rx, rz = clickChunkLocalToInstanceRelative(instanceManager, chunkInfo, localX, localZ, chunkX, chunkZ)
-            if rx == nil or rz == nil then
-                return
+            local relX = tonumber(data.relativeX)
+            local relZ = tonumber(data.relativeZ)
+            if relX and relZ then
+                localX = relX
+                localZ = relZ
+                chunkX, chunkZ = nil, nil
+            else
+                local chunkInfo = instanceManager.getChunkSnapshot()
+                local rx, rz = clickChunkLocalToInstanceRelative(instanceManager, chunkInfo, localX, localZ, chunkX, chunkZ)
+                if rx == nil or rz == nil then
+                    return
+                end
+                localX, localZ = rx, rz
+                chunkX, chunkZ = nil, nil
             end
-            -- For instance layouts, persistence matches by relative offsets in the "localX/localZ" params.
-            localX, localZ = rx, rz
-            chunkX, chunkZ = nil, nil
         end
 
         if layoutPersist.adjustLayoutTileHeight(bolt, layoutId, localX, localZ, chunkX, chunkZ, direction) then
@@ -1333,15 +1335,9 @@ function M.handleBrowserMessage(bolt, state, data)
             direction = -1
         end
 
-        local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
         local inInstance = instanceManager.isInInstance()
         -- Always calculate scope server-side for instances
-        local scope
-        if inInstance and not is2x2 then
-            scope = "instance"
-        else
-            scope = "world"
-        end
+        local scope = inInstance and "instance" or "world"
         if scope == "instance" then
             if instanceManager.adjustInstanceTileHeight(localX, localZ, direction, bolt) then
                 M.sendStateUpdate(state, bolt)
@@ -1382,14 +1378,8 @@ function M.handleBrowserMessage(bolt, state, data)
         -- Clear visible chunk tiles (those not in layouts)
         local tiles = data.tiles
         if type(tiles) == "table" then
-            local is2x2 = instanceManager.is2x2Instance and instanceManager.is2x2Instance() or false
             local inInstance = instanceManager.isInInstance()
-            local scope
-            if inInstance and not is2x2 then
-                scope = "instance"
-            else
-                scope = "world"
-            end
+            local scope = inInstance and "instance" or "world"
 
             local clearedCount = 0
             for _, tile in ipairs(tiles) do

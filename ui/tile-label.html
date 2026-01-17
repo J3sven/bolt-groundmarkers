@@ -26,6 +26,8 @@
         const params = new URLSearchParams(window.location.search);
         const chunkX = Number(params.get('chunkX'));
         const chunkZ = Number(params.get('chunkZ'));
+        const relativeX = Number(params.get('relativeX'));
+        const relativeZ = Number(params.get('relativeZ'));
         const localX = Number(params.get('localX'));
         const localZ = Number(params.get('localZ'));
         const scope = params.get('scope') || 'world';
@@ -70,6 +72,11 @@
 
             if (scope === 'layout' && layoutId) {
                 message.layoutId = layoutId;
+            }
+
+            if (!Number.isNaN(relativeX) && !Number.isNaN(relativeZ)) {
+                message.relativeX = relativeX;
+                message.relativeZ = relativeZ;
             }
 
             fetch('https://bolt-api/send-message', {

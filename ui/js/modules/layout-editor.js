@@ -296,40 +296,62 @@ const LayoutEditorModule = (() => {
         const localZ = Number(cell.dataset.localZ);
         const chunkX = Number(cell.dataset.chunkX);
         const chunkZ = Number(cell.dataset.chunkZ);
+        const relativeX = Number(cell.dataset.relativeX);
+        const relativeZ = Number(cell.dataset.relativeZ);
 
         if (!Number.isFinite(localX) || !Number.isFinite(localZ)) {
             return;
         }
 
         const isChunkLayout = currentLayout.layoutType === 'chunk';
-        if (isChunkLayout && (!Number.isFinite(chunkX) || !Number.isFinite(chunkZ))) {
-            return;
+        let chunkCoords = null;
+        if (isChunkLayout) {
+            if (Number.isFinite(chunkX) && Number.isFinite(chunkZ)) {
+                chunkCoords = { chunkX, chunkZ };
+            } else {
+                chunkCoords = getViewChunkCoords();
+            }
+            if (!chunkCoords) {
+                return;
+            }
         }
 
         if ((event.ctrlKey || event.metaKey) && cell.classList.contains('marked')) {
             event.preventDefault();
-            // Open label editor for this tile
-            Socket.sendToLua({
+            const message = {
                 action: 'open_layout_tile_label_editor',
                 layoutId: currentLayoutId,
                 localX,
-                localZ,
-                chunkX: isChunkLayout ? chunkX : undefined,
-                chunkZ: isChunkLayout ? chunkZ : undefined
-            });
+                localZ
+            };
+            if (isChunkLayout && chunkCoords) {
+                message.chunkX = chunkCoords.chunkX;
+                message.chunkZ = chunkCoords.chunkZ;
+            }
+            if (!isChunkLayout && Number.isFinite(relativeX) && Number.isFinite(relativeZ)) {
+                message.relativeX = relativeX;
+                message.relativeZ = relativeZ;
+            }
+            Socket.sendToLua(message);
             return;
         }
 
-        // Toggle tile in layout
-        Socket.sendToLua({
+        const toggleMessage = {
             action: 'toggle_layout_tile',
             layoutId: currentLayoutId,
             localX,
             localZ,
-            chunkX: isChunkLayout ? chunkX : undefined,
-            chunkZ: isChunkLayout ? chunkZ : undefined,
             colorIndex: editorSelectedColor
-        });
+        };
+        if (isChunkLayout && chunkCoords) {
+            toggleMessage.chunkX = chunkCoords.chunkX;
+            toggleMessage.chunkZ = chunkCoords.chunkZ;
+        }
+        if (!isChunkLayout && Number.isFinite(relativeX) && Number.isFinite(relativeZ)) {
+            toggleMessage.relativeX = relativeX;
+            toggleMessage.relativeZ = relativeZ;
+        }
+        Socket.sendToLua(toggleMessage);
     }
 
     function handleWheel(event) {
@@ -379,18 +401,39 @@ const LayoutEditorModule = (() => {
         const localZ = Number(cell.dataset.localZ);
         const chunkX = Number(cell.dataset.chunkX);
         const chunkZ = Number(cell.dataset.chunkZ);
+        const relativeX = Number(cell.dataset.relativeX);
+        const relativeZ = Number(cell.dataset.relativeZ);
 
         const isChunkLayout = currentLayout.layoutType === 'chunk';
+        let chunkCoords = null;
+        if (isChunkLayout) {
+            if (Number.isFinite(chunkX) && Number.isFinite(chunkZ)) {
+                chunkCoords = { chunkX, chunkZ };
+            } else {
+                chunkCoords = getViewChunkCoords();
+            }
+            if (!chunkCoords) {
+                return;
+            }
+        }
 
-        Socket.sendToLua({
+        const message = {
             action: 'adjust_layout_tile_height',
             layoutId: currentLayoutId,
             localX,
             localZ,
-            chunkX: isChunkLayout ? chunkX : undefined,
-            chunkZ: isChunkLayout ? chunkZ : undefined,
             direction
-        });
+        };
+        if (isChunkLayout && chunkCoords) {
+            message.chunkX = chunkCoords.chunkX;
+            message.chunkZ = chunkCoords.chunkZ;
+        }
+        if (!isChunkLayout && Number.isFinite(relativeX) && Number.isFinite(relativeZ)) {
+            message.relativeX = relativeX;
+            message.relativeZ = relativeZ;
+        }
+
+        Socket.sendToLua(message);
     }
 
     function zoomIn() {
@@ -453,6 +496,13 @@ const LayoutEditorModule = (() => {
         const half = Math.floor(viewSize / 2);
         const raw = playerCoord - half;
         return Math.max(0, Math.min(chunkSize - viewSize, raw));
+    }
+
+    function getViewChunkCoords() {
+        const chunkGrid = State.getState().chunkGrid;
+        const chunkX = chunkGrid && Number.isFinite(chunkGrid.chunkX) ? chunkGrid.chunkX : 0;
+        const chunkZ = chunkGrid && Number.isFinite(chunkGrid.chunkZ) ? chunkGrid.chunkZ : 0;
+        return { chunkX, chunkZ };
     }
 
     function openEditor(layoutId, layout) {
@@ -570,6 +620,7 @@ const LayoutEditorModule = (() => {
         const layoutTiles = currentLayout.tiles || [];
         const markedSet = new Set();
         const labelMap = new Map();
+        const tileMeta = new Map();
 
         const entryChunkX = chunkGrid && Number.isFinite(chunkGrid.entryChunkX) ? chunkGrid.entryChunkX : null;
         const entryChunkZ = chunkGrid && Number.isFinite(chunkGrid.entryChunkZ) ? chunkGrid.entryChunkZ : null;
@@ -614,6 +665,16 @@ const LayoutEditorModule = (() => {
 
             const key = `${localX},${localZ}`;
             markedSet.add(key);
+
+            const meta = {};
+            if (isChunkLayout) {
+                meta.chunkX = tile.chunkX;
+                meta.chunkZ = tile.chunkZ;
+            } else {
+                meta.relativeX = tile.relativeX;
+                meta.relativeZ = tile.relativeZ;
+            }
+            tileMeta.set(key, meta);
 
             if (tile.label) {
                 labelMap.set(key, tile.label);
@@ -678,8 +739,14 @@ const LayoutEditorModule = (() => {
                 }
 
                 const labelAttr = label ? ` data-label="${escapeHtml(label)}" title="${escapeHtml(label)}"` : '';
-                const chunkAttr = isChunkLayout ? ` data-chunk-x="${playerChunkX}" data-chunk-z="${playerChunkZ}"` : '';
-                html += `<div class="${classes.join(' ')}" data-local-x="${localX}" data-local-z="${localZ}"${chunkAttr}${labelAttr}></div>`;
+                const meta = tileMeta.get(key) || {};
+                const chunkAttr = isChunkLayout && Number.isFinite(meta.chunkX) && Number.isFinite(meta.chunkZ)
+                    ? ` data-chunk-x="${meta.chunkX}" data-chunk-z="${meta.chunkZ}"`
+                    : '';
+                const relativeAttr = !isChunkLayout && Number.isFinite(meta.relativeX) && Number.isFinite(meta.relativeZ)
+                    ? ` data-relative-x="${meta.relativeX}" data-relative-z="${meta.relativeZ}"`
+                    : '';
+                html += `<div class="${classes.join(' ')}" data-local-x="${localX}" data-local-z="${localZ}"${chunkAttr}${relativeAttr}${labelAttr}></div>`;
             }
         }
 

@@ -653,6 +653,16 @@ end
 
 -- Update a tile's label.
 -- IMPORTANT FIX: instance layouts match by relativeX/relativeZ.
+local function doesChunkTileMatch(tile, localX, localZ, chunkX, chunkZ)
+    if tile.localX ~= localX or tile.localZ ~= localZ then
+        return false
+    end
+    if chunkX ~= nil and chunkZ ~= nil then
+        return tile.chunkX == chunkX and tile.chunkZ == chunkZ
+    end
+    return true
+end
+
 function M.updateLayoutTileLabel(bolt, layoutId, localX, localZ, chunkX, chunkZ, label)
     local layoutsData = M.loadLayouts(bolt)
 
@@ -663,8 +673,7 @@ function M.updateLayoutTileLabel(bolt, layoutId, localX, localZ, chunkX, chunkZ,
             for _, tile in ipairs(tiles) do
                 local match = false
                 if layout.layoutType == "chunk" then
-                    match = tile.localX == localX and tile.localZ == localZ and
-                            tile.chunkX == chunkX and tile.chunkZ == chunkZ
+                    match = doesChunkTileMatch(tile, localX, localZ, chunkX, chunkZ)
                 else
                     match = tile.relativeX == localX and tile.relativeZ == localZ
                 end
@@ -703,8 +712,7 @@ function M.adjustLayoutTileHeight(bolt, layoutId, localX, localZ, chunkX, chunkZ
             for _, tile in ipairs(tiles) do
                 local match = false
                 if layout.layoutType == "chunk" then
-                    match = tile.localX == localX and tile.localZ == localZ and
-                            tile.chunkX == chunkX and tile.chunkZ == chunkZ
+                    match = doesChunkTileMatch(tile, localX, localZ, chunkX, chunkZ)
                 else
                     match = tile.relativeX == localX and tile.relativeZ == localZ
                 end
