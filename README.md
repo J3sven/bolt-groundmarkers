@@ -43,13 +43,33 @@ View the [CHANGELOG](CHANGELOG.md) to see what's new in the latest version.
       <td>Adjust chunk-tile height in the grid</td>
       <td><code>Shift + Scroll</code> over a marked cell</td>
     </tr>
+  </tbody>
+</table>
+
+
+## Editor Controls
+<table>
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Shortcut</th>
+    </tr>
+  </thead>
+  <tbody>
     <tr>
       <td>Zoom the chunk grid</td>
       <td>Scroll (no modifier)</td>
     </tr>
+    <tr>
+      <td>Add a Tile</td>
+      <td>Click the desired tile</td>
+    </tr>
+    <tr>
+      <td>Add or edit a label on a tile</td>
+      <td><code>Ctrl + Click</code> on a tile in the chunk map</td>
+    </tr>
   </tbody>
 </table>
-
 ---
 
 ## User Interface
@@ -61,9 +81,17 @@ View the [CHANGELOG](CHANGELOG.md) to see what's new in the latest version.
   * **Chunk Layouts** – when in the overworld, only unsaved tiles in the current chunk can be saved as a chunk-specific layout.
 * **Saved Layouts** – list of every stored layout (both instance and chunk layouts). Each item includes:
   * A badge indicating the layout type (Instance or Chunk)
-  * A toggle switch to activate/deactivate the layout. Layouts are automatically activated when saved or imported. Active layouts are remembered and auto-apply when you enter matching locations.
-  * Copy (export) and delete buttons. Export copies JSON to your clipboard (or opens a modal fallback) so you can share layouts. Delete prompts for confirmation.
-  * The _Import Layout_ button in this section opens a modal where you can paste JSON that someone else exported.
+  * A toggle switch to activate/deactivate the layout (hidden for linked layouts - see below)
+  * **Link Button** (Instance layouts only) – link the layout to your current entrance location. When linked:
+    * The button turns green to indicate the layout is linked
+    * The layout will automatically enable when you enter the instance from within a 9-tile radius of the linked location
+    * All instance layouts automatically disable when you exit any instance
+    * Multiple layouts can be linked to the same entrance
+    * You must be on the surface world (not in an instance) to link a layout
+  * **Edit Button** – opens the layout in the Chunk Map editor where you can add, remove, or modify individual tiles. Changes are automatically saved.
+  * **Export Button** – copies the layout JSON to your clipboard (or opens a modal fallback) so you can share layouts with others.
+  * **Delete Button** – removes the layout permanently after confirmation.
+  * The _Import Layout_ button opens a modal where you can paste JSON from an exported layout.
 
 ### 2. Chunk Map
 * Provides an interactive top-down grid map of the current chunk (64×64 tiles). The player tile is highlighted in orange; blue tiles are marked; white indicates the hover preview.
@@ -72,23 +100,35 @@ View the [CHANGELOG](CHANGELOG.md) to see what's new in the latest version.
 * **Height Control** – hold `Shift` and scroll over a marked tile to raise or lower its elevation.
 * The legend, status line, and dropdown all update live as layouts and palettes change.
 
-### 3. Palette
-* Shows every color slot in the active palette.
-* Click the square swatch to pick a new color and rename it in the adjacent field.
-* Press _Save_ to push the change back to the plugin. Colors sync immediately to layouts and the chunk map.
+### 3. Settings
+* **Line Thickness** – adjust the thickness of the tile outlines drawn in-game.
+* **Tile Fill** – toggle filled tiles on or off, and adjust the fill opacity.
+* **Fill Opacity** – adjust the opacity of filled tiles when tile fills are enabled.
+* **Connecting Lines** – toggle the visibility of lines connecting adjacent marked tiles.
+* **Tile Labels** – toggle the visibility of text labels on tiles.
+* **Palette Editor** – customize the global color palette used for marking tiles. Each slot can be renamed and recolored. Changes apply immediately everywhere.
 
 ---
 
 ## Typical Instance Workflow
+
+### Option 1: Manual Toggling
 1. **Prep** – enter your instance.
 2. **Mark Tiles** – use `Alt+Middle Click` or the chunk map to paint tiles as usual. These are stored as temporary tiles until you save them.
-4. **Save a Layout** – Open the UI and give the tiles a descriptive name (e.g., “Croesus North”). They are saved chunk-relative, so the markers automatically shift to match whatever instance chunk you stand in next.
-5. **Activate Layouts** – toggle the layout you need. The plugin remembers your choice and reapplies it whenever you re-enter an instance until you toggle it off.
-6. **Edit with the Chunk Map (Optional)** – use the Chunk Map tab to fine-tune tiles, preview placements from afar, and set heights via `Shift+Scroll`.
-7. **Reuse Later** – when you load into a different run of the same encounter, simply enter the instance and the active layout will appear. You can still place temporary tiles on top if needed.
+3. **Save a Layout** – Open the UI and give the tiles a descriptive name (e.g., "Croesus North"). They are saved chunk-relative, so the markers automatically shift to match whatever instance chunk you stand in next.
+4. **Activate Layouts** – toggle the layout you need. The plugin remembers your choice and reapplies it whenever you re-enter an instance until you toggle it off.
+5. **Edit with the Chunk Map (Optional)** – use the Chunk Map tab to fine-tune tiles, preview placements from afar, and set heights via `Shift+Scroll`.
+6. **Reuse Later** – when you load into a different run of the same encounter, simply enter the instance and the active layout will appear. You can still place temporary tiles on top if needed.
+
+### Option 2: Automatic Entrance Linking (Recommended)
+1. **Create Your Layout** – enter the instance, mark tiles, and save the layout as described above.
+2. **Link to Entrance** – exit the instance and return to the entrance location on the surface world (within ~9 tiles of where you usually enter).
+3. **Click the Link Button** – in the layouts list, click the link icon next to your instance layout and confirm your link. The button will turn green.
+4. **Automatic Switching** – from now on, whenever you enter the instance from this entrance area, the linked layout will automatically enable and all other instance layouts will disable.
+5. **Exit Behavior** – when you leave any instance, linked instance layouts automatically disable.
 
 ### Note:
-The reason layouts are chunk-relative is that bolt currently has no reliable way to identify specific instances or encounters. We can however detect whether you are in an instanced area, layouts can thus be reused across multiple runs of the same content, but will need to be switched between different encounters.
+The reason layouts are chunk-relative is that bolt currently has no reliable way to identify specific instances or encounters. We can however detect whether you are in an instanced area. Layouts can be reused across multiple runs of the same content, and with entrance linking, they automatically activate when you enter from the correct location.
 
 ---
 

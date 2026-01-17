@@ -654,6 +654,9 @@ function M.handleBrowserMessage(bolt, state, data)
                     displayName = layout.displayName or layout.name or "",
                     tiles = layout.tiles or {}
                 }
+                if layout.linkedEntrance then
+                    exportData.linkedEntrance = layout.linkedEntrance
+                end
                 local message = {
                     type = "export_layout_data",
                     layout = exportData
@@ -780,6 +783,86 @@ function M.handleBrowserMessage(bolt, state, data)
             instanceManager.deactivateLayout(layoutId)
         end
         M.sendStateUpdate(state, bolt)
+
+    elseif data.action == "link_layout" then
+        local layoutId = data.layoutId
+
+        if not layoutId then
+            return
+        end
+
+        if instanceManager.isInInstance() then
+            sendBrowserPayload({
+                type = "notification",
+                message = "Cannot link while in instance",
+                notificationType = "error"
+            })
+            return
+        end
+
+        local playerPos = bolt.playerposition()
+        if not playerPos then
+            sendBrowserPayload({
+                type = "notification",
+                message = "No valid position data available",
+                notificationType = "error"
+            })
+            return
+        end
+
+        local px, py, pz = playerPos:get()
+        local coords = require("core.coords")
+        local tileX, tileZ = coords.worldToTileCoords(px, pz)
+        local floor, chunkX, chunkZ, localX, localZ = coords.tileToRS(tileX, tileZ, py)
+
+
+        local success = layoutPersist.linkLayoutToEntrance(bolt, layoutId, {
+            chunkX = chunkX,
+            chunkZ = chunkZ,
+            localX = localX,
+            localZ = localZ,
+            floor = floor
+        })
+
+
+        if success then
+            M.sendFullUpdate(bolt, state)
+            sendBrowserPayload({
+                type = "notification",
+                message = "Layout linked to current entrance",
+                notificationType = "success"
+            })
+        else
+            sendBrowserPayload({
+                type = "notification",
+                message = "Failed to link layout",
+                notificationType = "error"
+            })
+        end
+
+    elseif data.action == "unlink_layout" then
+        local layoutId = data.layoutId
+
+        if not layoutId then
+            return
+        end
+
+        local success = layoutPersist.unlinkLayout(bolt, layoutId)
+
+        if success then
+            M.sendFullUpdate(bolt, state)
+            sendBrowserPayload({
+                type = "notification",
+                message = "Layout unlinked",
+                notificationType = "success"
+            })
+        else
+            sendBrowserPayload({
+                type = "notification",
+                message = "Failed to unlink layout",
+                notificationType = "error"
+            })
+        end
 
     elseif data.action == "delete_layout" then
         -- Delete a layout

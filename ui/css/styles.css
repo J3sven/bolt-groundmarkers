@@ -241,6 +241,11 @@ button.secondary:hover {
 .icon-button img { width: 16px; height: 16px; pointer-events: none; filter: brightness(0) invert(1); }
 .icon-button.danger { border-color: rgba(255,68,68,0.4); }
 .icon-button.danger:hover { border-color: rgba(255,68,68,0.8); background: rgba(255,68,68,0.12); }
+.icon-button.link-button { border-color: rgba(255,255,255,0.15); }
+.icon-button.link-button:hover { border-color: rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); }
+.icon-button.link-button.linked { border-color: rgba(76,175,80,0.6); background: rgba(76,175,80,0.08); }
+.icon-button.link-button.linked:hover { border-color: rgba(76,175,80,0.9); background: rgba(76,175,80,0.15); }
+.icon-button.link-button.linked img { filter: brightness(0) saturate(100%) invert(70%) sepia(50%) saturate(500%) hue-rotate(75deg); }
 .view-toggle {
     display: flex;
     gap: 8px;

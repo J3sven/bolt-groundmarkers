@@ -146,6 +146,9 @@ const LayoutsModule = (() => {
             const isChunkLayout = layout.layoutType === 'chunk';
             const layoutTypeLabel = isChunkLayout ? 'World' : 'Instance';
             const layoutTypeClass = isChunkLayout ? 'layout-type-chunk' : 'layout-type-instance';
+            const isLinked = !isChunkLayout && layout.linkedEntrance;
+            const linkButtonClass = isLinked ? 'link-button linked' : 'link-button';
+            const linkTitle = isLinked ? 'Linked to entrance - Click to unlink' : 'Link to current entrance';
 
             return `
                 <div class="layout-item ${isActive ? 'active' : ''} ${layoutTypeClass}" data-id="${layout.id}">
@@ -159,10 +162,17 @@ const LayoutsModule = (() => {
                             </div>
                         </div>
                         <div class="layout-controls">
-                            <label class="toggle-switch">
-                                <input type="checkbox" data-layout-id="${layout.id}" ${isActive ? 'checked' : ''}>
-                                <span class="toggle-track"></span>
-                            </label>
+                            ${!isLinked ? `
+                                <label class="toggle-switch">
+                                    <input type="checkbox" data-layout-id="${layout.id}" ${isActive ? 'checked' : ''}>
+                                    <span class="toggle-track"></span>
+                                </label>
+                            ` : ''}
+                            ${!isChunkLayout ? `
+                                <button type="button" class="icon-button ${linkButtonClass}" data-action="link" data-layout-id="${layout.id}" title="${linkTitle}" aria-label="${linkTitle}">
+                                    <img src="svg/link.svg" alt="">
+                                </button>
+                            ` : ''}
                             <button type="button" class="icon-button" data-action="edit" data-layout-id="${layout.id}" title="Edit layout" aria-label="Edit layout">
                                 <img src="svg/edit.svg" alt="">
                             </button>
@@ -221,6 +231,8 @@ const LayoutsModule = (() => {
             exportLayout(layoutId);
         } else if (action === 'delete') {
             requestDeleteLayout(layoutId);
+        } else if (action === 'link') {
+            handleLinkAction(layoutId);
         }
     }
 
@@ -284,6 +296,70 @@ const LayoutsModule = (() => {
                 Notifications.showNotification(`Deleting "${nameLabel}"...`, 'warning');
             }
         });
+    }
+
+    function handleLinkAction(layoutId) {
+        const state = State.getState();
+        const layout = state.layouts.find((l) => l.id === layoutId);
+        const isCurrentlyLinked = layout && layout.linkedEntrance;
+
+        if (isCurrentlyLinked) {
+            const nameLabel = layout.displayName || layout.name || 'this layout';
+            Modal.open({
+                title: 'Unlink Entrance',
+                message: `Remove entrance link from "${nameLabel}"? The layout will no longer auto-enable when entering from this location.`,
+                primaryLabel: 'Unlink',
+                primaryStyle: 'danger',
+                secondaryLabel: 'Cancel',
+                onPrimary: () => {
+                    Modal.close();
+                    Socket.sendToLua({
+                        action: 'unlink_layout',
+                        layoutId: layoutId
+                    });
+                }
+            });
+        } else {
+            // Link confirmation
+            if (state.inInstance) {
+                Modal.open({
+                    title: 'Cannot Link',
+                    message: 'You must be in the surface world to link an entrance. Exit the instance and return to the entrance location, then try again.',
+                    primaryLabel: 'OK',
+                    primaryStyle: 'primary',
+                    onPrimary: () => Modal.close()
+                });
+                return;
+            }
+
+            const nameLabel = layout ? (layout.displayName || layout.name || 'this layout') : 'this layout';
+            Modal.open({
+                title: 'Link to Entrance',
+                message: `
+                    <p>Link "${nameLabel}" to your current location?</p>
+                    <br>
+                    <p><strong>How it works:</strong></p>
+                    <ul style="text-align: left; padding-left: 20px; margin: 10px 0;">
+                        <li>Your current tile will be saved as the entrance reference</li>
+                        <li>When you enter an instance from this area, this layout will auto-enable</li>
+                        <li>Other instance layouts will auto-disable</li>
+                        <li>Multiple layouts can be linked to the same entrance</li>
+                    </ul>
+                    <br>
+                    <p style="color: #f9a825;"><strong>⚠ Make sure you're standing at the correct entrance before confirming!</strong></p>
+                `,
+                primaryLabel: 'Link Here',
+                primaryStyle: 'primary',
+                secondaryLabel: 'Cancel',
+                onPrimary: () => {
+                    Modal.close();
+                    Socket.sendToLua({
+                        action: 'link_layout',
+                        layoutId: layoutId
+                    });
+                }
+            });
+        }
     }
 
     function handleImportResult(payload) {

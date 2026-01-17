@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+
+## [unreleased]
+
+## Added
+- Added "layout-linking" for instance layouts, allowing them to be linked to a specific entrance point in the overworld. When linked, the layout will automatically activate when entering the instance from that entrance and turn off again when leaving. This can be managed in the layouts tab, where layouts can be linked or unlinked from the current entrance. Links will also be preserved when exporting and importing layouts, making it easier to share complete instance setups.
+
 ## [v1.11] - 2026-01-16
 
 ## Added

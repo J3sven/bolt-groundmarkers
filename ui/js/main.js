@@ -191,6 +191,13 @@ import LayoutEditor from './modules/layout-editor.js';
             }
         } else if (parsedData.type === 'import_result') {
             Layouts.handleImportResult(parsedData);
+        } else if (parsedData.type === 'notification') {
+            import('./modules/notify.js').then(module => {
+                const Notifications = module.default;
+                const message = parsedData.message || '';
+                const notifType = parsedData.notificationType || 'info';
+                Notifications.showNotification(message, notifType);
+            });
         } else if (parsedData.type === 'open_layout_editor') {
             const layout = parsedData.layout;
             if (layout) {

@@ -17,7 +17,13 @@ const ModalModule = (() => {
 
         modalState = config || {};
         titleEl.textContent = modalState.title || '';
-        messageEl.textContent = modalState.message || '';
+
+        const message = modalState.message || '';
+        if (message.includes('<') && message.includes('>')) {
+            messageEl.innerHTML = message;
+        } else {
+            messageEl.textContent = message;
+        }
 
         if (textareaEl) {
             if (modalState.showTextarea) {

@@ -24,6 +24,15 @@ local state = {
     entryChunkZ = nil,
     entryLocalX = nil,
     entryLocalZ = nil,
+    -- Surface position tracking for entrance linking
+    lastSurfacePosition = {
+        chunkX = nil,
+        chunkZ = nil,
+        localX = nil,
+        localZ = nil,
+        floor = nil
+    },
+    surfacePositionHistory = {},
 }
 
 local function isInInstanceChunk(chunkX)
@@ -84,6 +93,65 @@ function M.init(bolt)
     return true
 end
 
+local function findValidEntranceTile()
+    if state.lastSurfacePosition.chunkX then
+        return state.lastSurfacePosition
+    end
+
+    if #state.surfacePositionHistory > 0 then
+        local pos = state.surfacePositionHistory[1]
+        return pos
+    end
+
+    return nil
+end
+
+local function applyLayoutAutoSwitch(entranceTile)
+    if not boltRef then
+        return
+    end
+
+    local layoutPersist = require("data.layout_persistence")
+    local layouts = layoutPersist.getAllLayouts(boltRef)
+    local matchedLayouts = {}
+
+    -- Find all instance layouts linked to this entrance
+    for _, layout in ipairs(layouts) do
+        if layout.layoutType == "instance" and layout.linkedEntrance then
+            local link = layout.linkedEntrance
+
+            -- Calculate tile-based distance (9 tile radius)
+            local entryTileX = link.chunkX * 64 + link.localX
+            local entryTileZ = link.chunkZ * 64 + link.localZ
+
+            local currentTileX = entranceTile.chunkX * 64 + entranceTile.localX
+            local currentTileZ = entranceTile.chunkZ * 64 + entranceTile.localZ
+
+            local deltaX = math.abs(entryTileX - currentTileX)
+            local deltaZ = math.abs(entryTileZ - currentTileZ)
+
+            if deltaX <= 9 and deltaZ <= 9 then
+                table.insert(matchedLayouts, layout.id)
+            end
+        end
+    end
+
+    local allInstanceLayouts = {}
+    for _, layout in ipairs(layouts) do
+        if layout.layoutType == "instance" then
+            table.insert(allInstanceLayouts, layout.id)
+        end
+    end
+
+    for _, layoutId in ipairs(allInstanceLayouts) do
+        M.deactivateLayout(layoutId)
+    end
+
+    for _, layoutId in ipairs(matchedLayouts) do
+        M.activateLayout(layoutId)
+    end
+end
+
 function M.update(bolt)
     local playerPos = bolt.playerposition()
     if not playerPos then return end
@@ -94,11 +162,48 @@ function M.update(bolt)
     local floor, chunkX, chunkZ, localX, localZ = coords.tileToRS(tileX, tileZ, py)
 
     local wasInInstance = state.inInstance
-    state.inInstance = isInInstanceChunk(chunkX)
+    local newInInstance = isInInstanceChunk(chunkX)
 
     local chunkChanged = state.currentChunkX ~= chunkX or state.currentChunkZ ~= chunkZ
     local previousChunkX = state.currentChunkX
     local previousChunkZ = state.currentChunkZ
+    local previousLocalX = state.playerLocalX
+    local previousLocalZ = state.playerLocalZ
+    local previousFloor = state.playerFloor
+
+    -- Track surface position continuously when on surface
+    -- Also capture the transition moment when entering instance
+    if not newInInstance and not wasInInstance then
+        state.lastSurfacePosition.chunkX = chunkX
+        state.lastSurfacePosition.chunkZ = chunkZ
+        state.lastSurfacePosition.localX = localX
+        state.lastSurfacePosition.localZ = localZ
+        state.lastSurfacePosition.floor = floor
+
+        if chunkChanged then
+            table.insert(state.surfacePositionHistory, 1, {
+                chunkX = chunkX,
+                chunkZ = chunkZ,
+                localX = localX,
+                localZ = localZ,
+                floor = floor
+            })
+            if #state.surfacePositionHistory > 3 then
+                table.remove(state.surfacePositionHistory)
+            end
+        end
+    elseif newInInstance and not wasInInstance then
+        if previousChunkX and previousChunkZ and previousLocalX and previousLocalZ then
+            state.lastSurfacePosition.chunkX = previousChunkX
+            state.lastSurfacePosition.chunkZ = previousChunkZ
+            state.lastSurfacePosition.localX = previousLocalX
+            state.lastSurfacePosition.localZ = previousLocalZ
+            state.lastSurfacePosition.floor = previousFloor or floor
+        end
+    end
+
+    -- Now update the instance state
+    state.inInstance = newInInstance
 
     -- Detect instance-to-instance teleport: large chunk jump while in instance
     -- Adjacent chunks differ by 1, teleports jump much further (typically 100+)
@@ -124,7 +229,7 @@ function M.update(bolt)
     end
 
     if state.inInstance and not wasInInstance then
-        -- Entering instance from surface
+
         state.instanceTiles = {}
         state.hoverPreview = nil
         state.visitedChunks2x2 = {}
@@ -136,14 +241,17 @@ function M.update(bolt)
         state.entryLocalX = localX
         state.entryLocalZ = localZ
 
-        -- Track first chunk
         local chunkKey = chunkX .. "," .. chunkZ
         state.visitedChunks2x2[chunkKey] = true
+
+        -- Auto-switch layouts based on entrance
+        local entranceTile = findValidEntranceTile()
+        if entranceTile then
+            applyLayoutAutoSwitch(entranceTile)
+        end
     end
 
     if isTeleportBetweenInstances then
-        -- Teleporting between instances (skipping surface)
-        -- Clear instance state and reinitialize as if entering fresh
         state.instanceTiles = {}
         state.hoverPreview = nil
         state.visitedChunks2x2 = {}
@@ -158,6 +266,12 @@ function M.update(bolt)
         -- Track first chunk of new instance
         local chunkKey = chunkX .. "," .. chunkZ
         state.visitedChunks2x2[chunkKey] = true
+
+        -- Auto-switch layouts based on last surface entrance
+        local entranceTile = findValidEntranceTile()
+        if entranceTile then
+            applyLayoutAutoSwitch(entranceTile)
+        end
     end
 
     if not state.inInstance and wasInInstance then
@@ -170,6 +284,19 @@ function M.update(bolt)
         state.entryChunkZ = nil
         state.entryLocalX = nil
         state.entryLocalZ = nil
+
+        -- Disable all instance layouts when exiting
+        if boltRef then
+            local layoutPersist = require("data.layout_persistence")
+            local layouts = layoutPersist.getAllLayouts(boltRef)
+            local disabledCount = 0
+            for _, layout in ipairs(layouts) do
+                if layout.layoutType == "instance" and M.isLayoutActive(layout.id) then
+                    M.deactivateLayout(layout.id)
+                    disabledCount = disabledCount + 1
+                end
+            end
+        end
     end
 
     -- Detect 2x2 instance when crossing to adjacent chunk (normal walking, not teleport)
@@ -249,6 +376,9 @@ function M.clearActiveLayouts()
     persistActiveLayouts()
 end
 
+function M.getLastSurfacePosition()
+    return state.lastSurfacePosition
+end
 function M.addInstanceTile(tileData)
     local coords = require("core.coords")
     local key = coords.tileKey(tileData.x, tileData.z)

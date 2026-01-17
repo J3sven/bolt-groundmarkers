@@ -366,11 +366,17 @@ function M.saveLayouts(bolt, layoutsData)
     layoutsData.version = layoutsData.version or 1
     layoutsData.layouts = layoutsData.layouts or {}
 
+    for i, layout in ipairs(layoutsData.layouts) do
+        if layout.linkedEntrance then
+        end
+    end
+
     if bolt.json and bolt.json.encode then
         local ok, encoded = pcall(bolt.json.encode, layoutsData)
         if ok and encoded then
             bolt.saveconfig(LAYOUTS_FILE, encoded)
             return true
+        else
         end
     end
 
@@ -848,6 +854,90 @@ function M.deleteAllInstanceLayouts(bolt)
     M.saveLayouts(bolt, layoutsData)
 
     return deletedCount, originalCount - deletedCount
+end
+
+-- Link a layout to an entrance location
+function M.linkLayoutToEntrance(bolt, layoutId, entranceData)
+
+    if not bolt then
+        return false
+    end
+
+    local layoutsData = M.loadLayouts(bolt)
+
+    for i, layout in ipairs(layoutsData.layouts) do
+        if layout.id == layoutId then
+
+            -- Only allow linking instance layouts
+            if layout.layoutType ~= "instance" then
+                return false
+            end
+
+            layout.linkedEntrance = {
+                chunkX = entranceData.chunkX,
+                chunkZ = entranceData.chunkZ,
+                localX = entranceData.localX,
+                localZ = entranceData.localZ,
+                floor = entranceData.floor
+            }
+
+            if layout.linkedEntrance then
+            end
+
+            -- Save updated layouts
+            local success = M.saveLayouts(bolt, layoutsData)
+
+            if success then
+                -- Verify it was saved by reloading
+                local reloaded = M.loadLayouts(bolt)
+                for _, reloadedLayout in ipairs(reloaded.layouts) do
+                    if reloadedLayout.id == layoutId then
+                        if reloadedLayout.linkedEntrance then
+                        end
+                        break
+                    end
+                end
+
+                return true
+            end
+            return false
+        end
+    end
+
+    return false
+end
+
+-- Unlink a layout from its entrance
+function M.unlinkLayout(bolt, layoutId)
+    if not bolt then
+        return false
+    end
+
+    local layoutsData = M.loadLayouts(bolt)
+
+    for i, layout in ipairs(layoutsData.layouts) do
+        if layout.id == layoutId then
+            layout.linkedEntrance = nil
+
+            -- Save updated layouts
+            local success = M.saveLayouts(bolt, layoutsData)
+            if success then
+                return true
+            end
+            return false
+        end
+    end
+
+    return false
+end
+
+-- Get entrance info for a layout
+function M.getLayoutEntranceInfo(layoutId)
+    local layout = M.getLayout(layoutId)
+    if layout and layout.linkedEntrance then
+        return layout.linkedEntrance
+    end
+    return nil
 end
 
 return M
