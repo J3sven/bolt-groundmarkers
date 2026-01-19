@@ -167,19 +167,19 @@ label {
 }
 button {
     padding: 10px 20px;
-    background: linear-gradient(180deg, #2a799c, #123443 85%);
+    background: linear-gradient(180deg, #5f442e, #2c1706 85%);
     color: var(--nis-col-std, #e0e0e0);
-    border: 1px solid #485b65;
+    border: 1px solid #cca573;
     border-radius: 4px;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 0 5px #152932 inset;
+    box-shadow: 0 0 5px #7c683d inset;
     transition: background 0.2s, transform 0.2s, color 0.2s;
     white-space: nowrap;
 }
 button:hover {
-    background: linear-gradient(180deg, #2a799c, #1b4e65 85%);
+    background: linear-gradient(180deg, #9c812a, #1b4e65 85%);
     transform: translateY(-1px);
 }
 button:active {
@@ -260,9 +260,9 @@ button.secondary:hover {
     color: #bbb;
 }
 .view-toggle button.active {
-    background: linear-gradient(180deg, #2a799c, #123443 85%);
+    background: linear-gradient(180deg, #5f442e, #2c1706 85%);
     color: var(--nis-col-std, #e0e0e0);
-    border-color: #485b65;
+    border-color: #cca573;
 }
 .view-panel { display: none; }
 .view-panel.active { display: block; }
@@ -325,9 +325,9 @@ select { flex: 1; padding: 6px 10px; background: rgba(10, 10, 15, 0.75); border:
 .toggle-switch input { opacity: 0; width: 0; height: 0; }
 .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.15); border-radius: 999px; transition: background 0.2s ease; }
 .toggle-slider::before { content: ""; position: absolute; width: 20px; height: 20px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: transform 0.2s ease; }
-.toggle-switch input:checked + .toggle-slider { background: rgba(42, 121, 156, 0.8); }
+.toggle-switch input:checked + .toggle-slider { background: rgb(95, 68, 46); }
 .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
-.toggle-switch input:focus-visible + .toggle-slider { box-shadow: 0 0 0 2px rgba(42, 121, 156, 0.5); }
+.toggle-switch input:focus-visible + .toggle-slider { box-shadow: 0 0 0 2px rgba(95, 68, 46, 0.5); }
 .number-control { display: inline-flex; align-items: center; gap: 4px; }
 .number-button { width: 26px; height: 26px; padding: 0; font-size: 16px; font-weight: 700; line-height: 1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .number-control input[type="number"] { width: 60px; text-align: center; font-size: 13px; font-weight: 600; padding: 4px; background: rgba(10, 10, 15, 0.75); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 4px; color: var(--nis-col-std, #e0e0e0); -moz-appearance: textfield; }
@@ -341,7 +341,7 @@ select { flex: 1; padding: 6px 10px; background: rgba(10, 10, 15, 0.75); border:
 .palette-color-input::-webkit-color-swatch { border: none; border-radius: 3px; }
 .palette-color-input::-moz-color-swatch { border: none; border-radius: 3px; }
 .palette-name-input { flex: 1; padding: 6px 10px; background: rgba(10, 10, 15, 0.5); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: var(--nis-col-std, #e0e0e0); font-size: 13px; transition: border-color 0.2s; }
-.palette-name-input:focus { border-color: rgba(42, 121, 156, 0.5); outline: none; background: rgba(10, 10, 15, 0.75); }
+.palette-name-input:focus { border-color: rgba(95, 68, 46, 0.5); outline: none; background: rgba(10, 10, 15, 0.75); }
 .palette-fields label { display: flex; flex-direction: column; font-size: 11px; color: #aaa; gap: 4px; }
 .palette-fields input[type="text"] { width: 180px; }
 .palette-save { padding: 8px 14px; font-size: 12px; }
@@ -381,7 +381,7 @@ select { flex: 1; padding: 6px 10px; background: rgba(10, 10, 15, 0.75); border:
 .toggle-switch input { display: none; }
 .toggle-track { position: relative; width: 42px; height: 22px; background: rgba(255,255,255,0.2); border-radius: 999px; transition: background 0.2s ease; border: 1px solid rgba(255,255,255,0.2); }
 .toggle-track::after { content: ''; position: absolute; top: 1px; left: 2px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: transform 0.2s ease; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
-.toggle-switch input:checked + .toggle-track { background: linear-gradient(180deg, #2a799c, #123443 85%); border-color: #485b65; }
+.toggle-switch input:checked + .toggle-track { background: linear-gradient(180deg, #5f442e, #2c1706 85%); border-color: #cca573; }
 .toggle-switch input:checked + .toggle-track::after { transform: translateX(20px); }
 .toggle-label { font-size: 12px; color: #999; min-width: 48px; }
 .toggle-switch input:checked ~ .toggle-label { color: var(--nis-col-std, #e0e0e0); }
